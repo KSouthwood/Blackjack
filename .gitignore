@@ -30,3 +30,9 @@
 
 # Debug files
 *.dSYM/
+
+# Eclipse project files
+\.cproject
+\.project
+
+blackjack_test
