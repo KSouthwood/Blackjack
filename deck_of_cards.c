@@ -42,63 +42,56 @@
  * DECLARATIONS *
  ****************/
 
-/*
- * Instantiate the deck of cards.
+/***************
+ *  Summary: Instantiate one or more decks of cards
  *
- * Build a character array to hold the graphical representation of each card (rank and suit).
+ *  Description: Populates a deck (or decks) of cards with the ranks and suits in order. Initial set-up for a
+ *               card game before being shuffled.
  *
+ *  Parameter(s):
+ *      decks - the number of decks included in the shoe
  *
+ *  Returns:
+ *      deck - pointer to the array of card structs
  */
-card *init_deck()
+card *init_deck(uint8_t decks)
 {
-    card *deck = malloc(52 * sizeof(card));
+    uint16_t cards = CARDS_IN_DECK * decks;
+    card *deck = malloc(cards * sizeof(card));
     char *ranks[13] = {" A", " 2", " 3", " 4", " 5", " 6", " 7", " 8", " 9", "10", " J", " Q", " K"};
     char *suits[4] = {SPADE, CLUB, HEART, DIAMOND};
 
-    for (int c = 0; c < 52; c++)
+    for (uint16_t c = 0; c < cards; c++)
     {
-        strcpy(deck[c].rank, ranks[c % 13]);
-        strcpy(deck[c].suit, suits[c / 13]);
+        uint8_t cc = c % CARDS_IN_DECK;
+        strcpy(deck[c].rank, ranks[cc % 13]);
+        strcpy(deck[c].suit, suits[cc / 13]);
     }
+
     return deck;
 }
 
-/*
- * Instantiate a shoe of cards.
+/***************
+ *  Summary: Shuffle a shoe of cards
  *
- * Build an array for the number of decks of cards being used. Initially it'll hold the sequence
- * 0 - 51 one or more times in order before shuffling.
+ *  Description: Using the Fisher-Yates algorithm, shuffle a shoe of cards consisting of one or
+ *      more decks of cards.
  *
+ *  Parameter(s):
+ *      shoe: pointer to a shoe of cards
+ *      cards: the number of cards in the shoe
+ *
+ *  Returns:
+ *      N/A
  */
-unsigned short int *init_shoe(unsigned short int decks)
+void shuffle_cards(card *shoe, uint16_t cards)
 {
-    unsigned short int *shoe = malloc(52 * decks * sizeof(unsigned short int));
-
-    for (int deck = 0; deck < decks; deck++)
-    {
-        for (int card = 0; card < 52; card++)
-        {
-            shoe[(deck * 52) + card] = card;
-        }
-    }
-    return shoe;
-}
-
-/*
- * Shuffle the deck of cards.
- *
- * Shuffle the deck(s) of cards using the Fisher-Yates shuffle algorithm..
- *
- */
-
-void shuffle(unsigned short int *shoe, unsigned short int cards)
-{
-    unsigned short int shoe_tmp;
-    int swap;
+    card shoe_tmp;
+    uint16_t swap;
 
     for (int card = cards - 1; card > 0; card--)
     {
-        swap = rand() % cards;
+        swap = rand() % card;
 
         shoe_tmp = shoe[swap];
         shoe[swap] = shoe[card];

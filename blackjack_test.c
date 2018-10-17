@@ -43,103 +43,71 @@
 /****************
  * DECLARATIONS *
  ****************/
-void test_init_deck();
-void test_init_shoe(unsigned short int decks);
-void test_shuffle(unsigned short int decks);
+void test_init_shoe(uint8_t decks);
+void print_shoe(card *shoe, uint16_t cards);
 
 int main()
 {
-    test_init_deck();
-
     test_init_shoe(1);
     test_init_shoe(2);
-
-    test_shuffle(1);
-
     return 0;
 }
 
-/*
- * Test initializing the deck of cards.
+/***************
+ *  Summary: Test instantiation of a deck of cards
+ *
+ *  Description: Instantiate a deck of cards and print it out to verify correct set-up of cards.
+ *
+ *  Parameter(s):
+ *      N/A
+ *
+ *  Returns:
+ *      N/A
  */
-
-void test_init_deck()
+void test_init_shoe(uint8_t decks)
 {
-    printf("Initializing deck of cards...\n");
-    card *deck;
-    deck = init_deck();
+    uint16_t cards = decks * CARDS_IN_DECK;
+
+    printf("Initialize a %u deck shoe...\n", decks);
+    card *shoe = init_deck(decks);
+    print_shoe(shoe, cards);
+
+    printf("Shuffling a %u deck shoe...\n", decks);
+    shuffle_cards(shoe, cards);
+    print_shoe(shoe, cards);
+
+    free(shoe);
+    return;
+}
+
+/***************
+ *  Summary: Prints a shoe of cards in order.
+ *
+ *  Description: Prints a shoe of cards starting with the first card through the last card.
+ *
+ *  Parameter(s):
+ *      shoe - the shoe of cards to print
+ *      cards - the number of cards in the shoe
+ *
+ *  Returns:
+ *      N/A
+ */
+void print_shoe(card *shoe, uint16_t cards)
+{
     printf("Printing deck of cards:\n");
-    for (int c = 0; c < 52; c++)
+
+    for (uint16_t c = 0; c < cards; c++)
     {
-        printf("%s%s, ", deck[c].rank, deck[c].suit);
+        printf("%s%s", shoe[c].rank, shoe[c].suit);
+        if ((c + 1) % 13 == 0)
+        {
+            printf("\n");
+        }
+        else
+        {
+            printf(", ");
+        }
     }
-    printf("\n");
 
-    free(deck);
-    return;
-}
-
-/*
- * Test initializing a shoe of cards.
- */
-
-void test_init_shoe(unsigned short int decks)
-{
-    unsigned short int *shoe;
-    int cards = 52 * decks;
-
-    printf("\nInitializing shoe of cards with %u deck(s)...\n", decks);
-    shoe = init_shoe(decks);
-    printf("Printing shoe: ");
-    for (int card = 0; card < cards; card++)
-    {
-        printf("%u, ", shoe[card]);
-    }
-    printf("\n");
-
-    free(shoe);
-    return;
-}
-
-/*
- * Test shuffling a deck of cards.
- */
-void test_shuffle(unsigned short int decks)
-{
-    srand(68461);
-
-    // Instantiate a deck of cards first
-    unsigned short int *shoe;
-    unsigned short int cards = 52 * decks;
-
-    printf("\nInitializing shoe of cards with %u deck(s)...\n", decks);
-    shoe = init_shoe(decks);
-    printf("Printing shoe: ");
-    for (int card = 0; card < cards; card++)
-    {
-        printf("%u, ", shoe[card]);
-    }
-    printf("\n");
-
-    // Now shuffle the shoe
-    printf("\nShuffling the shoe of cards...\n");
-    shuffle(shoe, cards);
-    printf("Printing shuffled shoe: ");
-    for (int card = 0; card < cards; card++)
-    {
-        printf("%u, ", shoe[card]);
-    }
-    printf("\n");
-
-    printf("\nRe-shuffling the shoe of cards...\n");
-    shuffle(shoe, cards);
-    printf("Printing re-shuffled shoe: ");
-    for (int card = 0; card < cards; card++)
-    {
-        printf("%u, ", shoe[card]);
-    }
-    printf("\n");
-
-    free(shoe);
     return;
 }

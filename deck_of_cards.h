@@ -40,11 +40,12 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 /***********
  * DEFINES *
  ***********/
-
+#define CARDS_IN_DECK 52
 #define SPADE "\u2660"
 #define CLUB "\u2663"
 #define HEART "\u2665"
@@ -60,8 +61,7 @@ typedef struct card
  * DECLARATIONS *
  ****************/
 
-card *init_deck();
-unsigned short int *init_shoe(unsigned short int decks);
-void shuffle(unsigned short int *shoe, unsigned short int cards);
+card *init_deck(uint8_t decks);
+void shuffle_cards(card *shoe, uint16_t cards);
 
 #endif /* DECK_OF_CARDS_H_ */
