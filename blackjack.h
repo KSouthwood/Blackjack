@@ -23,56 +23,45 @@
  ***********************************************************************************/
 
 /*
- *  deck_of_cards.h
+ *  blackjack.h
  *
- *  Created on: Oct 11, 2018
+ *  Created on: Oct 18, 2018
  *      Author: Keri Southwood-Smith
  *
  *  Description:
  */
 
-#ifndef DECK_OF_CARDS_H_
-#define DECK_OF_CARDS_H_
+
+#ifndef BLACKJACK_H_
+#define BLACKJACK_H_
 
 /************
  * INCLUDES *
  ************/
-
-#include <string.h>
-#include <stdlib.h>
 #include <stdint.h>
-#include <stdio.h>
 
-#include "logger.h"
+#include "deck_of_cards.h"
 
 /***********
  * DEFINES *
  ***********/
-#define CARDS_IN_DECK 52
-#define SPADE "\u2660"
-#define CLUB "\u2663"
-#define HEART "\u2665"
-#define DIAMOND "\u2666"
-
-typedef struct card_struct
+typedef struct player_struct
 {
-    char suit[4];
-    char rank[3];
-} card_t;
+    card_t hand1[5];
+    card_t hand2[5];
+    uint32_t money;
+    char name[11];
+} player_t;
 
-typedef struct deck_struct
+typedef struct dealer_struct
 {
-    card_t *shoe;
-    uint16_t cards;
-    uint16_t left;
-} deck_t;
+    card_t hand[5];
+    char *name;
+    bool faceup;
+} dealer_t;
 
 /****************
  * DECLARATIONS *
  ****************/
 
-deck_t *init_deck(uint8_t decks);
-void shuffle_cards(deck_t *shoe);
-void print_shoe(deck_t *shoe);
-
-#endif /* DECK_OF_CARDS_H_ */
+#endif /* BLACKJACK_H_ */

@@ -23,56 +23,32 @@
  ***********************************************************************************/
 
 /*
- *  deck_of_cards.h
+ *  logger.h
  *
- *  Created on: Oct 11, 2018
+ *  Created on: Oct 24, 2018
  *      Author: Keri Southwood-Smith
  *
  *  Description:
  */
 
-#ifndef DECK_OF_CARDS_H_
-#define DECK_OF_CARDS_H_
+
+#ifndef LOGGER_H_
+#define LOGGER_H_
 
 /************
  * INCLUDES *
  ************/
-
-#include <string.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdio.h>
-
-#include "logger.h"
+#include "zlog.h"
 
 /***********
  * DEFINES *
  ***********/
-#define CARDS_IN_DECK 52
-#define SPADE "\u2660"
-#define CLUB "\u2663"
-#define HEART "\u2665"
-#define DIAMOND "\u2666"
-
-typedef struct card_struct
-{
-    char suit[4];
-    char rank[3];
-} card_t;
-
-typedef struct deck_struct
-{
-    card_t *shoe;
-    uint16_t cards;
-    uint16_t left;
-} deck_t;
+zlog_category_t *zc;
 
 /****************
  * DECLARATIONS *
  ****************/
+int init_zlog(char *conf_file, char *category);
+void end_zlog(void);
 
-deck_t *init_deck(uint8_t decks);
-void shuffle_cards(deck_t *shoe);
-void print_shoe(deck_t *shoe);
-
-#endif /* DECK_OF_CARDS_H_ */
+#endif /* LOGGER_H_ */

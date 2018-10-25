@@ -27,12 +27,13 @@
 *.i*86
 *.x86_64
 *.hex
+blackjack_test
+blackjack
 
 # Debug files
 *.dSYM/
+*.log
 
 # Eclipse project files
 \.cproject
 \.project
-
-blackjack_test

@@ -37,19 +37,36 @@
  ************/
 #include <stdio.h>
 #include <stdlib.h>
+#include <locale.h>
 
+#include "logger.h"
 #include "deck_of_cards.h"
+#include "curses_output.h"
+#include "blackjack.h"
 
 /****************
  * DECLARATIONS *
  ****************/
 void test_init_shoe(uint8_t decks);
-void print_shoe(card *shoe, uint16_t cards);
+void test_ncurses();
 
 int main()
 {
+    setlocale(LC_ALL, "");
+
+    /****** Initialize logging *****/
+    init_zlog("blackjack_test.conf", "test_cat");
+
+    zlog_info(zc, "Starting tests.");
     test_init_shoe(1);
     test_init_shoe(2);
+
+    zlog_info(zc, "Testing ncurses...");
+    test_ncurses();
+
+    zlog_info(zc, "Tests finished.");
+    end_zlog();
+
     return 0;
 }
 
@@ -66,48 +83,78 @@ int main()
  */
 void test_init_shoe(uint8_t decks)
 {
-    uint16_t cards = decks * CARDS_IN_DECK;
+    deck_t *shoe = calloc(1, sizeof(deck_t));
 
-    printf("Initialize a %u deck shoe...\n", decks);
-    card *shoe = init_deck(decks);
-    print_shoe(shoe, cards);
+    zlog_info(zc, "Initializing a %u deck shoe...", decks);
+    shoe = init_deck(decks);
+    print_shoe(shoe);
 
-    printf("Shuffling a %u deck shoe...\n", decks);
-    shuffle_cards(shoe, cards);
-    print_shoe(shoe, cards);
+    zlog_info(zc, "Shuffling a %u deck shoe...", decks);
+    shuffle_cards(shoe);
+    print_shoe(shoe);
+
+    zlog_info(zc, "Re-shuffling a %u deck shoe...", decks);
+    shuffle_cards(shoe);
+    print_shoe(shoe);
 
     free(shoe);
     return;
 }
 
-/***************
- *  Summary: Prints a shoe of cards in order.
- *
- *  Description: Prints a shoe of cards starting with the first card through the last card.
- *
- *  Parameter(s):
- *      shoe - the shoe of cards to print
- *      cards - the number of cards in the shoe
- *
- *  Returns:
- *      N/A
- */
-void print_shoe(card *shoe, uint16_t cards)
+void test_ncurses()
 {
-    printf("Printing deck of cards:\n");
+    init_window();
 
-    for (uint16_t c = 0; c < cards; c++)
-    {
-        printf("%s%s", shoe[c].rank, shoe[c].suit);
-        if ((c + 1) % 13 == 0)
-        {
-            printf("\n");
-        }
-        else
-        {
-            printf(", ");
-        }
-    }
+    uint16_t lines, columns;
+    getmaxyx(stdscr, lines, columns);
 
-    return;
+    char *msg1 = "stdscr has been initialized. Press a key to continue.";
+    char *msg2 = "Testing welcome screen. Press a key to continue.";
+    char *msg3 = "Dealer box tested. Press a key to continue.";
+    char *msg4 = "Player box tested. Press a key to continue.";
+
+    mvwaddstr(stdscr, 1, (columns - strlen(msg1)) / 2, msg1);
+    wgetch(stdscr);
+
+    erase();
+    mvwaddstr(stdscr, 3, (columns - strlen(msg2)) / 2, msg2);
+    wgetch(stdscr);
+
+    welcome_screen();
+
+    dealer_t *dealer = calloc(1, sizeof(dealer_t));
+    dealer->name = "Dealer";
+    dealer->faceup = FALSE;
+    strcpy(dealer->hand[0].rank, " A");
+    strcpy(dealer->hand[0].suit, SPADE);
+    strcpy(dealer->hand[1].rank, "10");
+    strcpy(dealer->hand[1].suit, DIAMOND);
+
+    display_dealer(dealer);
+
+    mvwaddstr(stdscr, lines - 3, (columns - strlen(msg3)) / 2, msg3);
+    wgetch(stdscr);
+    erase();
+
+    dealer->faceup = TRUE;
+    display_dealer(dealer);
+
+    mvwaddstr(stdscr, lines - 3, (columns - strlen(msg3)) / 2, msg3);
+    wgetch(stdscr);
+    erase();
+
+    player_t *player = calloc(1, sizeof(player_t));
+    strcpy(player->name, "Charlotte");
+    player->money = 12345678;
+    strcpy(player->hand1[0].rank, " A");
+    strcpy(player->hand1[0].suit, SPADE);
+    strcpy(player->hand2[0].rank, "10");
+    strcpy(player->hand2[0].suit, DIAMOND);
+
+    display_player(player);
+
+    mvwaddstr(stdscr, lines - 2, (columns - strlen(msg4)) / 2, msg4);
+    wgetch(stdscr);
+
+    end_window();
 }

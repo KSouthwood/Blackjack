@@ -6,28 +6,41 @@ CFLAGS = -fsanitize=signed-integer-overflow -fsanitize=undefined -ggdb3 -O0 -Qun
 
 # name for executable
 TEST = blackjack_test
+MAIN = blackjack
+EXES = $(TEST) $(MAIN)
 
 # space-separated list of header files
-TEST_HDRS = deck_of_cards.h
+HDRS = deck_of_cards.h curses_output.h logger.h blackjack.h unicode_box_chars.h
+TEST_HDRS = $(HDRS)
+MAIN_HDRS = $(HDRS)
 
 # space-separated list of libraries, if any,
 # each of which should be prefixed with -l
-TEST_LIBS = 
+LIBS = -lncursesw -lzlog -lpthread
+TEST_LIBS = $(LIBS)
+MAIN_LIBS = $(LIBS)
 
 # space-separated list of source files
-TEST_SRCS = blackjack_test.c deck_of_cards.c
+SRCS = deck_of_cards.c curses_output.c logger.c
+TEST_SRCS = blackjack_test.c $(SRCS)
+MAIN_SRCS = blackjack.c $(SRCS)
 
 # automatically generated list of object files
 TEST_OBJS = $(TEST_SRCS:.c=.o)
+MAIN_OBJS = $(MAIN_SRCS:.c=.o)
 
-all:	$(TEST)
+all:	$(EXES)
 
 $(TEST): $(TEST_OBJS) $(TEST_HDRS) Makefile
-	$(CC) $(CFLAGS) -o $@ $(TEST_OBJS) $(LIBS)
+	$(CC) $(CFLAGS) -o $@ $(TEST_OBJS) $(TEST_LIBS)
 
+$(MAIN): $(MAIN_OBJS) $(MAIN_HDRS) Makefile
+	$(CC) $(CFLAGS) -o $@ $(MAIN_OBJS) $(MAIN_LIBS)
+	
 # dependencies
 $(TEST_OBJS): $(TEST_HDRS) Makefile
+$(MAIN_OBJS): $(MAIN_HDRS) Makefile
 
 # housekeeping
 clean:
-	rm -f core $(TEST) *.o
+	rm -f core $(EXES) *.o *.log

@@ -23,56 +23,41 @@
  ***********************************************************************************/
 
 /*
- *  deck_of_cards.h
+ *  curses_output.h
  *
- *  Created on: Oct 11, 2018
+ *  Created on: Oct 17, 2018
  *      Author: Keri Southwood-Smith
  *
  *  Description:
  */
 
-#ifndef DECK_OF_CARDS_H_
-#define DECK_OF_CARDS_H_
+
+#ifndef CURSES_OUTPUT_H_
+#define CURSES_OUTPUT_H_
 
 /************
  * INCLUDES *
  ************/
-
-#include <string.h>
+#include <ncurses.h>
 #include <stdlib.h>
-#include <stdint.h>
-#include <stdio.h>
 
+#include "blackjack.h"
+#include "unicode_box_chars.h"
 #include "logger.h"
 
 /***********
  * DEFINES *
  ***********/
-#define CARDS_IN_DECK 52
-#define SPADE "\u2660"
-#define CLUB "\u2663"
-#define HEART "\u2665"
-#define DIAMOND "\u2666"
-
-typedef struct card_struct
-{
-    char suit[4];
-    char rank[3];
-} card_t;
-
-typedef struct deck_struct
-{
-    card_t *shoe;
-    uint16_t cards;
-    uint16_t left;
-} deck_t;
+#define PLAYER_WINDOW_COLS 20
+#define PLAYER_WINDOW_LINE 7
 
 /****************
  * DECLARATIONS *
  ****************/
+void init_window();
+void end_window();
+void welcome_screen();
+void display_dealer(dealer_t *dealer);
+void display_player(player_t *player);
 
-deck_t *init_deck(uint8_t decks);
-void shuffle_cards(deck_t *shoe);
-void print_shoe(deck_t *shoe);
-
-#endif /* DECK_OF_CARDS_H_ */
+#endif /* CURSES_OUTPUT_H_ */

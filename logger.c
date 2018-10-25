@@ -23,56 +23,69 @@
  ***********************************************************************************/
 
 /*
- *  deck_of_cards.h
+ *  logger.c
  *
- *  Created on: Oct 11, 2018
+ *  Created on: Oct 24, 2018
  *      Author: Keri Southwood-Smith
  *
  *  Description:
  */
 
-#ifndef DECK_OF_CARDS_H_
-#define DECK_OF_CARDS_H_
 
 /************
  * INCLUDES *
  ************/
-
-#include <string.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdio.h>
-
 #include "logger.h"
-
-/***********
- * DEFINES *
- ***********/
-#define CARDS_IN_DECK 52
-#define SPADE "\u2660"
-#define CLUB "\u2663"
-#define HEART "\u2665"
-#define DIAMOND "\u2666"
-
-typedef struct card_struct
-{
-    char suit[4];
-    char rank[3];
-} card_t;
-
-typedef struct deck_struct
-{
-    card_t *shoe;
-    uint16_t cards;
-    uint16_t left;
-} deck_t;
 
 /****************
  * DECLARATIONS *
  ****************/
 
-deck_t *init_deck(uint8_t decks);
-void shuffle_cards(deck_t *shoe);
-void print_shoe(deck_t *shoe);
+/***************
+ *  Summary: Set up the logging functions
+ *
+ *  Description: Initialize the logging functions, and set up the categories.
+ *
+ *  Parameter(s):
+ *      N/A
+ *
+ *  Returns:
+ *      N/A
+ */
+int init_zlog(char *conf_file, char *category)
+{
+    if (zlog_init(conf_file))
+    {
+        printf("zlog init failed\n");
+        return -1;
+    }
 
-#endif /* DECK_OF_CARDS_H_ */
+    zc = zlog_get_category(category);
+    if (!zc)
+    {
+        printf("zlog get cat failed.\n");
+        zlog_fini();
+        return -2;
+    }
+
+    zlog_debug(zc, "");
+    zlog_debug(zc, "******************************");
+    zlog_debug(zc, "     Logging initialized.");
+    zlog_debug(zc, "******************************");
+    zlog_debug(zc, "");
+
+    return 0;
+}
+
+void end_zlog(void)
+{
+    zlog_debug(zc, "");
+    zlog_debug(zc, "******************************");
+    zlog_debug(zc, "      Logging finished.");
+    zlog_debug(zc, "******************************");
+    zlog_debug(zc, "");
+
+    zlog_fini();
+
+    return;
+}

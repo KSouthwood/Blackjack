@@ -23,56 +23,49 @@
  ***********************************************************************************/
 
 /*
- *  deck_of_cards.h
+ *  unicode_box_chars.h
  *
- *  Created on: Oct 11, 2018
+ *  Created on: Oct 18, 2018
  *      Author: Keri Southwood-Smith
  *
- *  Description:
+ *  Description: File of unicode box characters
  */
 
-#ifndef DECK_OF_CARDS_H_
-#define DECK_OF_CARDS_H_
+
+#ifndef UNICODE_BOX_CHARS_H_
+#define UNICODE_BOX_CHARS_H_
 
 /************
  * INCLUDES *
  ************/
 
-#include <string.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdio.h>
-
-#include "logger.h"
-
 /***********
  * DEFINES *
  ***********/
-#define CARDS_IN_DECK 52
-#define SPADE "\u2660"
-#define CLUB "\u2663"
-#define HEART "\u2665"
-#define DIAMOND "\u2666"
+#define SING_HORZ_L L'\u2500'
+#define SING_HORZ_H L'\u2501'
+#define SING_VERT_L L'\u2502'
+#define SING_VERT_H L'\u2503'
 
-typedef struct card_struct
-{
-    char suit[4];
-    char rank[3];
-} card_t;
+#define SING_UPPL_L L'\u250C'
+#define SING_UPPL_H L'\u250F'
+#define SING_UPPR_L L'\u2510'
+#define SING_UPPR_H L'\u2513'
+#define SING_LOWL_L L'\u2514'
+#define SING_LOWL_H L'\u2517'
+#define SING_LOWR_L L'\u2518'
+#define SING_LOWR_H L'\u251B'
 
-typedef struct deck_struct
-{
-    card_t *shoe;
-    uint16_t cards;
-    uint16_t left;
-} deck_t;
+#define DOUB_HORZ L'\u2550'
+#define DOUB_VERT L'\u2551'
+#define DOUB_UPPL L'\u2554'
+#define DOUB_UPPR L'\u2557'
+#define DOUB_LOWL L'\u255A'
+#define DOUB_LOWR L'\u255D'
+
 
 /****************
  * DECLARATIONS *
  ****************/
 
-deck_t *init_deck(uint8_t decks);
-void shuffle_cards(deck_t *shoe);
-void print_shoe(deck_t *shoe);
-
-#endif /* DECK_OF_CARDS_H_ */
+#endif /* UNICODE_BOX_CHARS_H_ */

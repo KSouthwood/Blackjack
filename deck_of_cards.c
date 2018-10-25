@@ -45,29 +45,43 @@
 /***************
  *  Summary: Instantiate one or more decks of cards
  *
- *  Description: Populates a deck (or decks) of cards with the ranks and suits in order. Initial set-up for a
- *               card game before being shuffled.
+ *  Description: Populates a deck_t struct of cards with the ranks and suits in order. Initial
+ *               set-up for a card game before being shuffled. Also sets the number of cards and
+ *               cards left to initial values to be used elsewhere as needed.
  *
  *  Parameter(s):
  *      decks - the number of decks included in the shoe
  *
  *  Returns:
- *      deck - pointer to the array of card structs
+ *      deck - pointer to the deck_t struct or NULL if an error
  */
-card *init_deck(uint8_t decks)
+deck_t *init_deck(uint8_t decks)
 {
     uint16_t cards = CARDS_IN_DECK * decks;
-    card *deck = malloc(cards * sizeof(card));
+
+    // allocate memory
+    deck_t *deck = calloc(1, sizeof(deck_t));
+    deck->shoe = calloc(cards, sizeof(card_t));
+    if (!deck->shoe || !deck)
+    {
+        zlog_error(zc, "Memory allocation for shoe or deck failed.");
+        goto error;
+    }
+
     char *ranks[13] = {" A", " 2", " 3", " 4", " 5", " 6", " 7", " 8", " 9", "10", " J", " Q", " K"};
     char *suits[4] = {SPADE, CLUB, HEART, DIAMOND};
 
-    for (uint16_t c = 0; c < cards; c++)
+    for (uint16_t card = 0; card < cards; card++)
     {
-        uint8_t cc = c % CARDS_IN_DECK;
-        strcpy(deck[c].rank, ranks[cc % 13]);
-        strcpy(deck[c].suit, suits[cc / 13]);
+        uint8_t cc = card % CARDS_IN_DECK;
+        strcpy(deck->shoe[card].rank, ranks[cc % 13]);
+        strcpy(deck->shoe[card].suit, suits[cc / 13]);
     }
 
+    deck->cards = cards;
+    deck->left = cards;
+
+error:
     return deck;
 }
 
@@ -84,19 +98,46 @@ card *init_deck(uint8_t decks)
  *  Returns:
  *      N/A
  */
-void shuffle_cards(card *shoe, uint16_t cards)
+void shuffle_cards(deck_t *shoe)
 {
-    card shoe_tmp;
+    card_t shoe_tmp;
     uint16_t swap;
 
-    for (int card = cards - 1; card > 0; card--)
+    for (int card = shoe->cards - 1; card > 0; card--)
     {
         swap = rand() % card;
 
-        shoe_tmp = shoe[swap];
-        shoe[swap] = shoe[card];
-        shoe[card] = shoe_tmp;
+        shoe_tmp = shoe->shoe[swap];
+        shoe->shoe[swap] = shoe->shoe[card];
+        shoe->shoe[card] = shoe_tmp;
     }
 
     return;
 }
+
+/***************
+ *  Summary: Prints a shoe of cards in order.
+ *
+ *  Description: Prints a shoe of cards starting with the first card through the last card.
+ *
+ *  Parameter(s):
+ *      shoe: the shoe of cards to print
+ *      cards: the number of cards in the shoe
+ *
+ *  Returns:
+ *      N/A
+ */
+void print_shoe(deck_t *shoe)
+{
+    printf("Printing deck of cards:\n");
+
+    for (uint16_t card = 0; card < shoe->cards; card++)
+    {
+        printf("%s%s", shoe->shoe[card].rank, shoe->shoe[card].suit);
+        printf("%s", ((card + 1) % 13) == 0 ? "\n" : ", ");
+    }
+    printf("\n");
+
+    return;
+}
+
