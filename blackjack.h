@@ -47,10 +47,11 @@
  ***********/
 typedef struct player_struct
 {
+    char name[11];
+    uint32_t money;
+    uint32_t bet;
     card_t hand1[5];
     card_t hand2[5];
-    uint32_t money;
-    char name[11];
 } player_t;
 
 typedef struct dealer_struct
@@ -60,8 +61,17 @@ typedef struct dealer_struct
     bool faceup;
 } dealer_t;
 
+#define DEBUG 1; // set to 0 to get true random shuffle, etc.
+
 /****************
  * DECLARATIONS *
  ****************/
 
 #endif /* BLACKJACK_H_ */
+
+/*
+ * author keri
+ *
+ * TODO: Use a struct called table to hold the players and dealer? Would also hold the number of
+ * players sitting at the table and possibly even the shoe. Mull it over...
+ */

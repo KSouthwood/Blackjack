@@ -55,10 +55,10 @@
 
 void init_window()
 {
-    initscr();      // Initialize ncurses mode
-    cbreak();       // Make keypresses available immediately
-    noecho();       // Don't echo keypresses to the screen
-    curs_set(0);    // Hide the cursor
+    initscr();              // Initialize ncurses mode
+    cbreak();               // Make keypresses available immediately
+    noecho();               // Don't echo keypresses to the screen
+    curs_set(CURS_INVIS);   // Hide the cursor
 
     keypad(stdscr, TRUE);
 

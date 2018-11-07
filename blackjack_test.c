@@ -49,6 +49,7 @@
  ****************/
 void test_init_shoe(uint8_t decks);
 void test_ncurses();
+void deal_hand(deck_t *shoe);
 
 int main()
 {
@@ -61,8 +62,8 @@ int main()
     test_init_shoe(1);
     test_init_shoe(2);
 
-    zlog_info(zc, "Testing ncurses...");
-    test_ncurses();
+//    zlog_info(zc, "Testing ncurses...");
+//    test_ncurses();
 
     zlog_info(zc, "Tests finished.");
     end_zlog();
@@ -83,24 +84,82 @@ int main()
  */
 void test_init_shoe(uint8_t decks)
 {
-    deck_t *shoe = calloc(1, sizeof(deck_t));
-
     zlog_info(zc, "Initializing a %u deck shoe...", decks);
-    shoe = init_deck(decks);
+    deck_t *shoe = init_deck(decks);
     print_shoe(shoe);
 
     zlog_info(zc, "Shuffling a %u deck shoe...", decks);
     shuffle_cards(shoe);
     print_shoe(shoe);
 
+    zlog_info(zc, "Deal 5 cards...");
+    deal_hand(shoe);
+
     zlog_info(zc, "Re-shuffling a %u deck shoe...", decks);
     shuffle_cards(shoe);
     print_shoe(shoe);
 
+    zlog_info(zc, "Deal 5 cards...");
+    deal_hand(shoe);
+
+    free(shoe->shoe);
     free(shoe);
     return;
 }
 
+/***************
+ *  Summary: Test instantiation of a deck of cards
+ *
+ *  Description: Instantiate a deck of cards and print it out to verify correct set-up of cards.
+ *
+ *  Parameter(s):
+ *      N/A
+ *
+ *  Returns:
+ *      N/A
+ */
+void deal_hand(deck_t *shoe)
+{
+    zlog_info(zc, "Allocate memory for player.");
+    player_t *player = calloc(1, sizeof(player_t));
+
+    if (!player)
+    {
+        zlog_error(zc, "Couldn't allocate memory for player.");
+        return;
+    }
+
+    zlog_info(zc, "Setting up player.");
+    strcpy(player->name, "John Doe");
+    player->money = 9999;
+    player->hand1[0] = deal_card(shoe);
+    player->hand2[0] = deal_card(shoe);
+    player->hand1[1] = deal_card(shoe);
+    player->hand2[1] = deal_card(shoe);
+    player->hand1[2] = deal_card(shoe);
+
+    printf("Name  : %s\n", player->name);
+    printf("Money : $%d\n", player->money);
+    printf("Hand 1: %s, %s, %s, %s, %s - %d\n", player->hand1[0].face, player->hand1[1].face,
+            player->hand1[2].face, player->hand1[3].face, player->hand1[4].face, blackjack_count(player->hand1));
+    printf("Hand 2: %s, %s, %s, %s, %s - %d\n\n", player->hand2[0].face, player->hand2[1].face,
+            player->hand2[2].face, player->hand2[3].face, player->hand2[4].face, blackjack_count(player->hand2));
+
+    free(player);
+    return;
+}
+
+/***************
+ *  Summary: Test instantiation of a deck of cards
+ *
+ *  Description: Instantiate a deck of cards and print it out to verify correct set-up of cards.
+ *
+ *  Parameter(s):
+ *      N/A
+ *
+ *  Returns:
+ *      N/A
+ */
 void test_ncurses()
 {
     init_window();

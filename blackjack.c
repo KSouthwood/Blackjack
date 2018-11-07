@@ -42,10 +42,16 @@ uint8_t get_num_players();
 player_t *init_players(uint8_t num_players);
 dealer_t *init_dealer();
 void play_game(uint8_t num_players, player_t *players, dealer_t *dealer);
+void deal_hands(deck_t *shoe, uint8_t num_players, player_t *players, dealer_t *dealer);
 
 int main()
 {
+#if DEBUG
+    srand(1968);
+#else
     srand(time(NULL));
+#endif
+
     if (init_zlog("blackjack.conf", "log")) return ERR;
 
     init_window();
@@ -62,20 +68,23 @@ int main()
     }
 
     player_t *players = init_players(num_players);
+    zdebug("players is at %#X.", (uint32_t) players);
     if (!players)
         {
-            zlog_error(zc, "Couldn't allocate memory for players array.");
+            zerror("Couldn't allocate memory for players array.");
             goto exit_2;
         }
 
     dealer_t *dealer = init_dealer();
-
+    zdebug("dealer is at %#X.", (uint32_t) dealer);
     if (!dealer)
         {
-            zlog_error(zc, "Couldn't allocate memory for dealer struct.");
+            zerror("Couldn't allocate memory for dealer struct.");
             goto exit_1;
         }
 
+    zinfo("Calling play game with num_players: %i, players: %#X, dealer: %#X.",
+            num_players, (uint32_t) players, (uint32_t) dealer);
     play_game(num_players, players, dealer);
 
 exit_1:
@@ -111,6 +120,7 @@ uint8_t get_num_players()
     uint8_t num_players = 0;
     char input;
 
+    curs_set(CURS_NORMAL);
     mvwaddstr(stdscr, 0, 0, "How many people are playing? (1-5 or q to quit.) ");
 
     while (num_players == 0)
@@ -128,13 +138,13 @@ uint8_t get_num_players()
         // convert input to a number and make sure it's in our acceptable range
         if (atoi(&input))
         {
-//            num_players = atoi(&input);
-            num_players = (atoi(&input) > 5) ? 0 : num_players;
+            num_players = (atoi(&input) > 5) ? 0 : atoi(&input);
         }
     }
 
-    zlog_info(zc, "Got %i players as input.", num_players);
+    zinfo("Got %i players as input.", num_players);
     waddch(stdscr, input);
+    curs_set(CURS_INVIS);
 
     return num_players;
 }
@@ -158,6 +168,7 @@ player_t *init_players(uint8_t num_players)
     if (!players) goto exit;
 
     /***** Get player names *****/
+    curs_set(CURS_NORMAL); // enable cursor
     mvwaddstr(stdscr, 2, 0, "Player names are limited to 10 characters max.");
     for (uint8_t ii = 0; ii < num_players; ii++)
     {
@@ -167,6 +178,7 @@ player_t *init_players(uint8_t num_players)
         noecho();
         players[ii].money = 1000;
     }
+    curs_set(CURS_INVIS); // disable cursor
 
 exit:
     return players;
@@ -186,7 +198,7 @@ exit:
 
 dealer_t *init_dealer()
 {
-    dealer_t *dealer = calloc(1, sizeof(dealer));
+    dealer_t *dealer = calloc(1, sizeof(dealer_t));
     zlog_debug(zc, "Pointer to dealer is %#X", (uint32_t) dealer);
 
     if (dealer != NULL)
@@ -214,19 +226,98 @@ dealer_t *init_dealer()
  */
 void play_game(uint8_t num_players, player_t *players, dealer_t *dealer)
 {
+    zinfo("play_game called with num_players: %i, players: %#X, dealer: %#X.",
+            num_players, (uint32_t) players, (uint32_t) dealer);
     uint8_t decks = (num_players < 4) ? 4 : 6; // determine how many decks in the shoe
 
     zlog_info(zc, "Instantiating %i decks for %i players.", decks, num_players);
     deck_t *shoe = init_deck(decks);
-    zlog_info(zc, "Shuffling shoe.");
+    zdebug("deck_t shoe pointer returned as %#X.", (uint32_t) shoe);
+    zinfo("Shuffling shoe.");
     shuffle_cards(shoe);
 
-    zlog_debug(zc, "Player 1 name is %s, Dealer's name is %s", players[0].name, dealer->name);
-
+    zdebug("Setting game_over flag and starting game loop.");
     bool game_over = FALSE;
     while (!game_over)
     {
-
+        zinfo("Calling deal_hands for initial deal.");
+        deal_hands(shoe, num_players, players, dealer);
+        check_dealer_hand(num_players, players, dealer);
+        zdebug("Setting game_over to TRUE to escape loop.");
+        game_over = TRUE;
     }
+
+    zdebug("Freeing memory for card_t struct shoe (%#X) in deck_t struct shoe.", (uint32_t) shoe->shoe);
+    free(shoe->shoe);
+    zdebug("Freeing memory for deck_t struct shoe (%#X).", (uint32_t) shoe);
+    free(shoe);
     return;
 }
+
+/***************
+ *  Summary: Deal the initial hands to the table
+ *
+ *  Description: Deal the initial round of cards to the table, setting the dealers faceup boolean to
+ *      false.
+ *
+ *  Parameter(s):
+ *  	shoe: deck_t struct containing the cards to be dealt
+ *  	num_players: number of players at the table
+ *  	players: array of player_t structs containing information about each player
+ *  	dealer: dealer_t struct for the dealer
+ *
+ *	Returns:
+ *		N/A
+ */
+void deal_hands(deck_t *shoe, uint8_t num_players, player_t *players, dealer_t *dealer)
+{
+    // re-shuffle the deck if we're nearing the end
+    // TODO: Get rid of magic number. Switch to calculated random point or just use a #define
+    if ((shoe->cards - shoe->left) < (shoe->cards * 0.8))
+    {
+        shuffle_cards(shoe);
+    }
+
+    for (uint8_t c = 0; c < 2; c++)
+    {
+        for (uint8_t i = 0; i < num_players; i++)
+        {
+            players[i].hand1[c] = deal_card(shoe);
+            zinfo("Player %i got card: %s", i, players[i].hand1[c].face);
+        }
+
+        dealer->hand[c] = deal_card(shoe);
+        zinfo("Dealer got card: %s", dealer->hand[c].face);
+    }
+
+    dealer->faceup = false;
+    zinfo("Set dealer faceup flag to false. Returning.");
+
+    return;
+}
+
+/***************
+ *  Summary: Check dealer hand for blackjack
+ *
+ *  Description: Checks the dealer's hand in order to offer insurance or for blackjack which is an
+ *      automatic win. First check dealer upcard for an Ace, and offer insurance to players if true.
+ *      If not an Ace (or after offering insurance) check if we have a blackjack, and collect all
+ *      bets if we do.
+ *
+ *  Parameter(s):
+ *  	num_players:    number of players at the table
+ *      players:        pointer to array of player_t structs
+ *      dealer:         pointer to dealer_t struct
+ *
+ *	Returns:
+ *		N/A
+ */
+void check_dealer_hand(uint8_t num_players, player_t *players, dealer_t *dealer)
+{
+    // check for Ace in dealer upcard
+    bool dealer_ace = (dealer->hand[1].rank == "A");
+    bool dealer_21  = (blackjack_count(dealer->hand) == 21);
+
+
+}
+

@@ -50,10 +50,10 @@
  *               cards left to initial values to be used elsewhere as needed.
  *
  *  Parameter(s):
- *      decks - the number of decks included in the shoe
+ *      decks: the number of decks included in the shoe
  *
  *  Returns:
- *      deck - pointer to the deck_t struct or NULL if an error
+ *      deck: pointer to the deck_t struct or NULL if an error
  */
 deck_t *init_deck(uint8_t decks)
 {
@@ -68,14 +68,18 @@ deck_t *init_deck(uint8_t decks)
         goto error;
     }
 
-    char *ranks[13] = {" A", " 2", " 3", " 4", " 5", " 6", " 7", " 8", " 9", "10", " J", " Q", " K"};
+    char *ranks[13] = {"A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"};
     char *suits[4] = {SPADE, CLUB, HEART, DIAMOND};
+    uint8_t values[13] = {11, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10};
 
     for (uint16_t card = 0; card < cards; card++)
     {
         uint8_t cc = card % CARDS_IN_DECK;
         strcpy(deck->shoe[card].rank, ranks[cc % 13]);
         strcpy(deck->shoe[card].suit, suits[cc / 13]);
+        strcpy(deck->shoe[card].face, deck->shoe[card].rank);
+        strcat(deck->shoe[card].face, deck->shoe[card].suit);
+        deck->shoe[card].value = values[cc % 13];
     }
 
     deck->cards = cards;
@@ -93,7 +97,6 @@ error:
  *
  *  Parameter(s):
  *      shoe: pointer to a shoe of cards
- *      cards: the number of cards in the shoe
  *
  *  Returns:
  *      N/A
@@ -111,6 +114,8 @@ void shuffle_cards(deck_t *shoe)
         shoe->shoe[swap] = shoe->shoe[card];
         shoe->shoe[card] = shoe_tmp;
     }
+
+    shoe->left = shoe->cards; // Re-set the cards left to the number of cards in the shoe
 
     return;
 }
@@ -133,7 +138,7 @@ void print_shoe(deck_t *shoe)
 
     for (uint16_t card = 0; card < shoe->cards; card++)
     {
-        printf("%s%s", shoe->shoe[card].rank, shoe->shoe[card].suit);
+        printf("%4s", shoe->shoe[card].face);
         printf("%s", ((card + 1) % 13) == 0 ? "\n" : ", ");
     }
     printf("\n");
@@ -141,3 +146,67 @@ void print_shoe(deck_t *shoe)
     return;
 }
 
+/***************
+ *  Summary: Deal a card from the shoe
+ *
+ *  Description: Using the supplied shoe struct, return the topmost card in the shoe. Update the
+ *      counter in the struct as well.
+ *
+ *  Parameter(s):
+ *      shoe: a deck_t struct
+ *
+ *  Returns:
+ *      card: a card_t struct to be added to the hand of the caller
+ */
+card_t deal_card(deck_t *shoe)
+{
+    return shoe->shoe[shoe->cards - shoe->left--];
+}
+
+uint8_t blackjack_count(card_t *hand)
+{
+//    card_t *emptyCard = calloc(1, sizeof(card_t));
+    bool softCount = false;
+    bool hasAce = false;
+    uint8_t card = 0;
+    uint8_t count = 0;
+
+    while (strcmp(hand[card].rank, ""))
+    {
+        if (hand[card].value == 11)
+        {
+            if (!hasAce)
+            {
+                hasAce = true;
+                softCount = true;
+                count += 11;
+            }
+            else
+            {
+                count += 1;
+            }
+        }
+        else
+        {
+            count += hand[card].value;
+        }
+
+        // check if we're over 21
+        if (count > 21)
+        {
+            if (softCount)
+            {
+                softCount = false;
+                count -= 10;
+            }
+            else
+            {
+                count = 0;
+                break;      // player/dealer is over 21, no need to keep going so break out of loop
+            }
+        }
+
+        card++;
+    }
+    return count;
+}

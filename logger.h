@@ -45,6 +45,10 @@
  ***********/
 zlog_category_t *zc;
 
+#define zinfo(msg, ...) zlog_info(zc, msg, ## __VA_ARGS__)
+#define zdebug(msg, ...) zlog_debug(zc, msg, ## __VA_ARGS__)
+#define zerror(msg, ...) zlog_error(zc, msg, ## __VA_ARGS__)
+
 /****************
  * DECLARATIONS *
  ****************/

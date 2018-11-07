@@ -43,4 +43,4 @@ $(MAIN_OBJS): $(MAIN_HDRS) Makefile
 
 # housekeeping
 clean:
-	rm -f core $(EXES) *.o *.log
+	rm -f core $(EXES) *.o ./log/*.log

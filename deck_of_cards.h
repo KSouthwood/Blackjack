@@ -42,6 +42,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #include "logger.h"
 
@@ -56,8 +57,10 @@
 
 typedef struct card_struct
 {
-    char suit[4];
     char rank[3];
+    char suit[4];
+    char face[7];
+    uint8_t value;
 } card_t;
 
 typedef struct deck_struct
@@ -74,5 +77,7 @@ typedef struct deck_struct
 deck_t *init_deck(uint8_t decks);
 void shuffle_cards(deck_t *shoe);
 void print_shoe(deck_t *shoe);
+card_t deal_card(deck_t *shoe);
+uint8_t blackjack_count(card_t *hand);
 
 #endif /* DECK_OF_CARDS_H_ */

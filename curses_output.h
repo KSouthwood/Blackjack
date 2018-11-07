@@ -51,6 +51,9 @@
 #define PLAYER_WINDOW_COLS 20
 #define PLAYER_WINDOW_LINE 7
 
+#define CURS_INVIS 0
+#define CURS_NORMAL 1
+
 /****************
  * DECLARATIONS *
  ****************/

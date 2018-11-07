@@ -37,3 +37,5 @@ blackjack
 # Eclipse project files
 \.cproject
 \.project
+
+\.metadata/
