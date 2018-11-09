@@ -35,17 +35,25 @@
 #include "logger.h"
 #include "blackjack.h"
 
+/***********
+ * DEFINES *
+ ***********/
+enum errorCode {NO_ERROR, PLAYER_ALLOC, DEALER_ALLOC, DECK_ALLOC, PLAYER_QUIT};
+
 /****************
  * DECLARATIONS *
  ****************/
+uint8_t setup_table(Table *table);
 uint8_t get_num_players();
-player_t *init_players(uint8_t num_players);
-dealer_t *init_dealer();
-void play_game(uint8_t num_players, player_t *players, dealer_t *dealer);
-void deal_hands(deck_t *shoe, uint8_t num_players, player_t *players, dealer_t *dealer);
+Player *init_players(uint8_t num_players);
+Dealer *init_dealer();
+void play_game(Table *table);
+void deal_hands(Table *table);
+void check_dealer_hand(Dealer *dealer);
 
 int main()
 {
+    // seed random number generator
 #if DEBUG
     srand(1968);
 #else
@@ -55,47 +63,43 @@ int main()
     if (init_zlog("blackjack.conf", "log")) return ERR;
 
     init_window();
-    zlog_info(zc, "ncurses initialized.");
-
+    zinfo("ncurses initialized.");
     welcome_screen();
-    zlog_info(zc, "Welcome screen displayed.");
+    zinfo("Welcome screen displayed.");
 
-    uint8_t num_players = get_num_players();
-    if (!num_players)
+    // create table struct
+    Table *table = calloc(1, sizeof(Table));
+    if (!table)
     {
-        zlog_debug(zc, "Got 0 back which means player wants to quit.");
-        goto exit_3;
+        zerror("Couldn't allocate memory for Table struct!");
+    }
+    else
+    {
+        switch (setup_table(table))
+        {
+            /***** No breaks or default on purpose *****/
+            case NO_ERROR:
+                zinfo("Calling play game with num_players: %i, players: %#X, dealer: %#X.",
+                        table->numPlayers, (uint32_t) table->players, (uint32_t) table->dealer);
+                play_game(table);
+                zdebug("Freeing memory for Card struct shoe (%#X) in Deck struct shoe.",
+                        (uint32_t) table->shoe->shoe);
+                free(table->shoe->shoe);
+                zdebug("Freeing memory for Deck struct shoe (%#X).", (uint32_t) table->shoe);
+                free(table->shoe);
+            case DECK_ALLOC:
+                zlog_debug(zc, "Freeing memory for dealer.");
+                free(table->dealer);
+            case DEALER_ALLOC:
+                zlog_debug(zc, "Freeing memory for players.");
+                free(table->players);
+            case PLAYER_ALLOC:
+            case PLAYER_QUIT:
+                zdebug("Freeing memory for Table.");
+                free(table);
+        }
     }
 
-    player_t *players = init_players(num_players);
-    zdebug("players is at %#X.", (uint32_t) players);
-    if (!players)
-        {
-            zerror("Couldn't allocate memory for players array.");
-            goto exit_2;
-        }
-
-    dealer_t *dealer = init_dealer();
-    zdebug("dealer is at %#X.", (uint32_t) dealer);
-    if (!dealer)
-        {
-            zerror("Couldn't allocate memory for dealer struct.");
-            goto exit_1;
-        }
-
-    zinfo("Calling play game with num_players: %i, players: %#X, dealer: %#X.",
-            num_players, (uint32_t) players, (uint32_t) dealer);
-    play_game(num_players, players, dealer);
-
-exit_1:
-    zlog_debug(zc, "Freeing memory for dealer.");
-    free(dealer);
-
-exit_2:
-    zlog_debug(zc, "Freeing memory for players.");
-    free(players);
-
-exit_3:
     zlog_debug(zc, "Stopping ncurses.");
     end_window();
     end_zlog();
@@ -104,49 +108,101 @@ exit_3:
 }
 
 /***************
+ *  Summary: Set-up the table for game play.
+ *
+ *  Description: Set-up each of the fields of the table by calling other functions in order. Exit
+ *      immediately if we encounter any errors along the way.
+ *
+ *  Parameter(s):
+ *  	table: a pointer to the Table struct
+ *
+ *	Returns:
+ *		error:
+ */
+uint8_t setup_table(Table *table)
+{
+    // get the number of players at table
+    table->numPlayers = get_num_players();
+    if (!table->numPlayers)
+    {
+        zdebug("Got 0 back which means player wants to quit.");
+        return PLAYER_QUIT;
+    }
+
+    // instantiate player(s)
+    table->players = init_players(table->numPlayers);
+    zdebug("players is at %#X.", (uint32_t) table->players);
+    if (!table->players)
+    {
+        zerror("Couldn't allocate memory for players array.");
+        return PLAYER_ALLOC;
+    }
+
+    table->dealer = init_dealer();
+    zdebug("dealer is at %#X.", (uint32_t) table->dealer);
+    if (!table->dealer)
+        {
+            zerror("Couldn't allocate memory for dealer struct.");
+            return DEALER_ALLOC;
+        }
+
+    uint8_t decks = (table->numPlayers < 4) ? 4 : 6; // determine how many decks in the shoe
+    zinfo("Instantiating %i decks for %i players.", decks, table->numPlayers);
+    table->shoe = init_deck(decks);
+    zdebug("Deck shoe pointer returned as %#X.", (uint32_t) table->shoe);
+    if(!table->shoe)
+    {
+        zerror("Couldn't allocate memory for deck of cards.");
+        return DECK_ALLOC;
+    }
+
+    return NO_ERROR;
+}
+
+/***************
  *  Summary: Get the number of players
  *
  *  Description: Asks how many players will be playing, only accepting 1 to 5 players. All other
- *      keypresses will be ignored.
+ *      keypresses besides 'q' (for quitting the game) will be ignored.
  *
  *  Parameter(s):
  *      N/A
  *
  *  Returns:
- *      num_players: The number of players playing blackjack
+ *      numOfPlayers: The number of players playing blackjack
  */
 uint8_t get_num_players()
 {
-    uint8_t num_players = 0;
+    uint8_t numOfPlayers = 0;
     char input;
 
     curs_set(CURS_NORMAL);
     mvwaddstr(stdscr, 0, 0, "How many people are playing? (1-5 or q to quit.) ");
 
-    while (num_players == 0)
+    while (numOfPlayers == 0)
     {
         input = wgetch(stdscr);
 
         // q was entered to quit program
         if (tolower(input) == 'q')
         {
-            num_players = 0;
-            zlog_debug(zc, "'q' was entered. Exiting loop.");
+            numOfPlayers = 0;
+            zdebug("'q' was entered. Exiting loop.");
             break;
         }
 
         // convert input to a number and make sure it's in our acceptable range
         if (atoi(&input))
         {
-            num_players = (atoi(&input) > 5) ? 0 : atoi(&input);
+            numOfPlayers = (atoi(&input) > 5) ? 0 : atoi(&input);
         }
     }
 
-    zinfo("Got %i players as input.", num_players);
+    zinfo("Got %i players as input.", numOfPlayers);
     waddch(stdscr, input);
     curs_set(CURS_INVIS);
 
-    return num_players;
+    return numOfPlayers;
 }
 
 /***************
@@ -160,27 +216,28 @@ uint8_t get_num_players()
  *
  *  Returns:
  *      players: a pointer to an array of player structs with their name and initial amount of money
+ *          or NULL if we couldn't allocate memory
  */
-player_t *init_players(uint8_t num_players)
+Player *init_players(uint8_t num_players)
 {
-    player_t *players = calloc(num_players, sizeof(player_t));
+    Player *players = calloc(num_players, sizeof(Player));
     zlog_debug(zc, "Pointer to players is %#X", (uint32_t) players);
-    if (!players) goto exit;
-
-    /***** Get player names *****/
-    curs_set(CURS_NORMAL); // enable cursor
-    mvwaddstr(stdscr, 2, 0, "Player names are limited to 10 characters max.");
-    for (uint8_t ii = 0; ii < num_players; ii++)
+    if (players)
     {
-        mvwprintw(stdscr, 3 + ii, 0, "What is player %i's name? ", ii + 1);
-        echo(); // Turn echo on temporarily
-        wgetnstr(stdscr, players[ii].name, 10);
-        noecho();
-        players[ii].money = 1000;
+        /***** Get player names *****/
+        curs_set(CURS_NORMAL); // enable cursor
+        mvwaddstr(stdscr, 2, 0, "Player names are limited to 10 characters max.");
+        for (uint8_t ii = 0; ii < num_players; ii++)
+        {
+            mvwprintw(stdscr, 3 + ii, 0, "What is player %i's name? ", ii + 1);
+            echo(); // Turn echo on temporarily
+            wgetnstr(stdscr, players[ii].name, 10);
+            noecho();
+            players[ii].money = 1000;
+        }
+        curs_set(CURS_INVIS); // disable cursor
     }
-    curs_set(CURS_INVIS); // disable cursor
 
-exit:
     return players;
 }
 
@@ -196,12 +253,12 @@ exit:
  *      dealer: a pointer to dealer struct or NULL if an error occurred
  */
 
-dealer_t *init_dealer()
+Dealer *init_dealer()
 {
-    dealer_t *dealer = calloc(1, sizeof(dealer_t));
+    Dealer *dealer = calloc(1, sizeof(Dealer));
     zlog_debug(zc, "Pointer to dealer is %#X", (uint32_t) dealer);
 
-    if (dealer != NULL)
+    if (dealer)
     {
         dealer->name = "Dealer";
         dealer->faceup = FALSE;
@@ -224,33 +281,24 @@ dealer_t *init_dealer()
  *  Returns:
  *      N/A
  */
-void play_game(uint8_t num_players, player_t *players, dealer_t *dealer)
+void play_game(Table *table)
 {
     zinfo("play_game called with num_players: %i, players: %#X, dealer: %#X.",
-            num_players, (uint32_t) players, (uint32_t) dealer);
-    uint8_t decks = (num_players < 4) ? 4 : 6; // determine how many decks in the shoe
-
-    zlog_info(zc, "Instantiating %i decks for %i players.", decks, num_players);
-    deck_t *shoe = init_deck(decks);
-    zdebug("deck_t shoe pointer returned as %#X.", (uint32_t) shoe);
+            table->numPlayers, (uint32_t) table->players, (uint32_t) table->dealer);
     zinfo("Shuffling shoe.");
-    shuffle_cards(shoe);
+    shuffle_cards(table->shoe);
 
     zdebug("Setting game_over flag and starting game loop.");
     bool game_over = FALSE;
     while (!game_over)
     {
         zinfo("Calling deal_hands for initial deal.");
-        deal_hands(shoe, num_players, players, dealer);
-        check_dealer_hand(num_players, players, dealer);
+        deal_hands(table);
+        check_dealer_hand(table->dealer);
         zdebug("Setting game_over to TRUE to escape loop.");
         game_over = TRUE;
     }
 
-    zdebug("Freeing memory for card_t struct shoe (%#X) in deck_t struct shoe.", (uint32_t) shoe->shoe);
-    free(shoe->shoe);
-    zdebug("Freeing memory for deck_t struct shoe (%#X).", (uint32_t) shoe);
-    free(shoe);
     return;
 }
 
@@ -269,29 +317,29 @@ void play_game(uint8_t num_players, player_t *players, dealer_t *dealer)
  *	Returns:
  *		N/A
  */
-void deal_hands(deck_t *shoe, uint8_t num_players, player_t *players, dealer_t *dealer)
+void deal_hands(Table *table)
 {
     // re-shuffle the deck if we're nearing the end
     // TODO: Get rid of magic number. Switch to calculated random point or just use a #define
-    if ((shoe->cards - shoe->left) < (shoe->cards * 0.8))
+    if ((table->shoe->cards - table->shoe->left) < (table->shoe->left * 0.8))
     {
-        shuffle_cards(shoe);
+        shuffle_cards(table->shoe);
     }
 
     for (uint8_t c = 0; c < 2; c++)
     {
-        for (uint8_t i = 0; i < num_players; i++)
+        for (uint8_t i = 0; i < table->numPlayers; i++)
         {
-            players[i].hand1[c] = deal_card(shoe);
-            zinfo("Player %i got card: %s", i, players[i].hand1[c].face);
+            table->players[i].hand1[c] = deal_card(table->shoe);
+            zinfo("Player %i got card: %s", i, table->players[i].hand1[c].face);
         }
 
-        dealer->hand[c] = deal_card(shoe);
-        zinfo("Dealer got card: %s", dealer->hand[c].face);
+        table->dealer->hand[c] = deal_card(table->shoe);
+        zinfo("Dealer got card: %s", table->dealer->hand[c].face);
     }
 
-    dealer->faceup = false;
     zinfo("Set dealer faceup flag to false. Returning.");
+    table->dealer->faceup = false;
 
     return;
 }
@@ -312,12 +360,14 @@ void deal_hands(deck_t *shoe, uint8_t num_players, player_t *players, dealer_t *
  *	Returns:
  *		N/A
  */
-void check_dealer_hand(uint8_t num_players, player_t *players, dealer_t *dealer)
+void check_dealer_hand(Dealer *dealer)
 {
     // check for Ace in dealer upcard
-    bool dealer_ace = (dealer->hand[1].rank == "A");
+    bool dealer_ace = (strcmp(dealer->hand[1].rank, "A"));
     bool dealer_21  = (blackjack_count(dealer->hand) == 21);
 
+    zinfo("%i %i", dealer_ace, dealer_21);
 
+    return;
 }
 

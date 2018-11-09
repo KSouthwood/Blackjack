@@ -23,55 +23,60 @@
  ***********************************************************************************/
 
 /*
- *  blackjack.h
+ *  deck_of_cards.h
  *
- *  Created on: Oct 18, 2018
+ *  Created on: Oct 11, 2018
  *      Author: Keri Southwood-Smith
  *
  *  Description:
  */
 
-
-#ifndef BLACKJACK_H_
-#define BLACKJACK_H_
+#ifndef DECK_OF_CARDS_H_
+#define DECK_OF_CARDS_H_
 
 /************
  * INCLUDES *
  ************/
-#include <stdint.h>
 
-#include "deck_of_cards.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdbool.h>
+
+#include "logger.h"
 
 /***********
  * DEFINES *
  ***********/
-typedef struct player_struct
-{
-    char name[11];
-    uint32_t money;
-    uint32_t bet;
-    card_t hand1[5];
-    card_t hand2[5];
-} player_t;
+#define CARDS_IN_DECK 52
+#define SPADE "\u2660"
+#define CLUB "\u2663"
+#define HEART "\u2665"
+#define DIAMOND "\u2666"
 
-typedef struct dealer_struct
+typedef struct Card
 {
-    card_t hand[5];
-    char *name;
-    bool faceup;
-} dealer_t;
+    char rank[3];
+    char suit[4];
+    char face[7];
+    uint8_t value;
+} Card;
 
-#define DEBUG 1; // set to 0 to get true random shuffle, etc.
+typedef struct Deck
+{
+    Card *shoe;
+    uint16_t cards;
+    uint16_t left;
+} Deck;
 
 /****************
  * DECLARATIONS *
  ****************/
+Deck *init_deck(uint8_t decks);
+void shuffle_cards(Deck *shoe);
+void print_shoe(Deck *shoe);
+Card deal_card(Deck *shoe);
+uint8_t blackjack_count(Card *hand);
 
-#endif /* BLACKJACK_H_ */
-
-/*
- * author keri
- *
- * TODO: Use a struct called table to hold the players and dealer? Would also hold the number of
- * players sitting at the table and possibly even the shoe. Mull it over...
- */
+#endif /* DECK_OF_CARDS_H_ */

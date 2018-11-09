@@ -39,3 +39,7 @@ blackjack
 \.project
 
 \.metadata/
+
+Managed Build \(Release\)/
+
+\.settings/

@@ -131,7 +131,7 @@ void welcome_screen()
     return;
 }
 
-void display_dealer(dealer_t *dealer)
+void display_dealer(Dealer *dealer)
 {
     WINDOW *dealer_box = newwin(PLAYER_WINDOW_LINE, PLAYER_WINDOW_COLS, 0, 0);
 
@@ -167,7 +167,7 @@ error:
     return;
 }
 
-void display_player(player_t *player)
+void display_player(Player *player)
 {
     WINDOW *player_box = newwin(PLAYER_WINDOW_LINE, PLAYER_WINDOW_COLS, 8, 0);
 

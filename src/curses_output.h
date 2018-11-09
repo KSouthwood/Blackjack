@@ -23,61 +23,43 @@
  ***********************************************************************************/
 
 /*
- *  deck_of_cards.h
+ *  curses_output.h
  *
- *  Created on: Oct 11, 2018
+ *  Created on: Oct 17, 2018
  *      Author: Keri Southwood-Smith
  *
  *  Description:
  */
 
-#ifndef DECK_OF_CARDS_H_
-#define DECK_OF_CARDS_H_
+
+#ifndef CURSES_OUTPUT_H_
+#define CURSES_OUTPUT_H_
 
 /************
  * INCLUDES *
  ************/
-
-#include <string.h>
+#include <ncurses.h>
 #include <stdlib.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdbool.h>
 
+#include "blackjack.h"
+#include "unicode_box_chars.h"
 #include "logger.h"
 
 /***********
  * DEFINES *
  ***********/
-#define CARDS_IN_DECK 52
-#define SPADE "\u2660"
-#define CLUB "\u2663"
-#define HEART "\u2665"
-#define DIAMOND "\u2666"
+#define PLAYER_WINDOW_COLS 20
+#define PLAYER_WINDOW_LINE 7
 
-typedef struct card_struct
-{
-    char rank[3];
-    char suit[4];
-    char face[7];
-    uint8_t value;
-} card_t;
-
-typedef struct deck_struct
-{
-    card_t *shoe;
-    uint16_t cards;
-    uint16_t left;
-} deck_t;
+enum cursorMode {CURS_INVIS, CURS_NORMAL, CURS_VVIS};
 
 /****************
  * DECLARATIONS *
  ****************/
+void init_window();
+void end_window();
+void welcome_screen();
+void display_dealer(Dealer *dealer);
+void display_player(Player *player);
 
-deck_t *init_deck(uint8_t decks);
-void shuffle_cards(deck_t *shoe);
-void print_shoe(deck_t *shoe);
-card_t deal_card(deck_t *shoe);
-uint8_t blackjack_count(card_t *hand);
-
-#endif /* DECK_OF_CARDS_H_ */
+#endif /* CURSES_OUTPUT_H_ */

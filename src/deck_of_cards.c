@@ -55,13 +55,13 @@
  *  Returns:
  *      deck: pointer to the deck_t struct or NULL if an error
  */
-deck_t *init_deck(uint8_t decks)
+Deck *init_deck(uint8_t decks)
 {
     uint16_t cards = CARDS_IN_DECK * decks;
 
     // allocate memory
-    deck_t *deck = calloc(1, sizeof(deck_t));
-    deck->shoe = calloc(cards, sizeof(card_t));
+    Deck *deck = calloc(1, sizeof(Deck));
+    deck->shoe = calloc(cards, sizeof(Card));
     if (!deck->shoe || !deck)
     {
         zlog_error(zc, "Memory allocation for shoe or deck failed.");
@@ -101,9 +101,9 @@ error:
  *  Returns:
  *      N/A
  */
-void shuffle_cards(deck_t *shoe)
+void shuffle_cards(Deck *shoe)
 {
-    card_t shoe_tmp;
+    Card shoe_tmp;
     uint16_t swap;
 
     for (int card = shoe->cards - 1; card > 0; card--)
@@ -132,7 +132,7 @@ void shuffle_cards(deck_t *shoe)
  *  Returns:
  *      N/A
  */
-void print_shoe(deck_t *shoe)
+void print_shoe(Deck *shoe)
 {
     printf("Printing deck of cards:\n");
 
@@ -158,12 +158,12 @@ void print_shoe(deck_t *shoe)
  *  Returns:
  *      card: a card_t struct to be added to the hand of the caller
  */
-card_t deal_card(deck_t *shoe)
+Card deal_card(Deck *shoe)
 {
     return shoe->shoe[shoe->cards - shoe->left--];
 }
 
-uint8_t blackjack_count(card_t *hand)
+uint8_t blackjack_count(Card *hand)
 {
 //    card_t *emptyCard = calloc(1, sizeof(card_t));
     bool softCount = false;

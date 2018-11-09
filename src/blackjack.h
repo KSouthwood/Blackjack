@@ -23,44 +23,63 @@
  ***********************************************************************************/
 
 /*
- *  curses_output.h
+ *  blackjack.h
  *
- *  Created on: Oct 17, 2018
+ *  Created on: Oct 18, 2018
  *      Author: Keri Southwood-Smith
  *
  *  Description:
  */
 
 
-#ifndef CURSES_OUTPUT_H_
-#define CURSES_OUTPUT_H_
+#ifndef BLACKJACK_H_
+#define BLACKJACK_H_
 
 /************
  * INCLUDES *
  ************/
-#include <ncurses.h>
-#include <stdlib.h>
+#include <stdint.h>
 
-#include "blackjack.h"
-#include "unicode_box_chars.h"
-#include "logger.h"
+#include "deck_of_cards.h"
 
 /***********
  * DEFINES *
  ***********/
-#define PLAYER_WINDOW_COLS 20
-#define PLAYER_WINDOW_LINE 7
+typedef struct Player
+{
+    char name[11];
+    uint32_t money;
+    uint32_t bet;
+    Card hand1[5];
+    Card hand2[5];
+} Player;
 
-#define CURS_INVIS 0
-#define CURS_NORMAL 1
+typedef struct Dealer
+{
+    Card hand[5];
+    char *name;
+    bool faceup;
+} Dealer;
+
+typedef struct Table
+{
+    uint8_t numPlayers;
+    Player *players;
+    Dealer *dealer;
+    Deck *shoe;
+} Table;
+
+#define DEBUG 1 // set to 0 to get true random shuffle, etc.
 
 /****************
  * DECLARATIONS *
  ****************/
-void init_window();
-void end_window();
-void welcome_screen();
-void display_dealer(dealer_t *dealer);
-void display_player(player_t *player);
 
-#endif /* CURSES_OUTPUT_H_ */
+#endif /* BLACKJACK_H_ */
+
+/*
+ * author keri
+ *
+ * TODO: Use a struct called table to hold the players and dealer? Would also hold the number of
+ * players sitting at the table and possibly even the shoe. Mull it over...
+ */

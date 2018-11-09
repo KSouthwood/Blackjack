@@ -39,17 +39,17 @@
 #include <stdlib.h>
 #include <locale.h>
 
-#include "logger.h"
-#include "deck_of_cards.h"
-#include "curses_output.h"
-#include "blackjack.h"
+#include "../src/logger.h"
+#include "../src/deck_of_cards.h"
+#include "../src/curses_output.h"
+#include "../src/blackjack.h"
 
 /****************
  * DECLARATIONS *
  ****************/
 void test_init_shoe(uint8_t decks);
 void test_ncurses();
-void deal_hand(deck_t *shoe);
+void deal_hand(Deck *shoe);
 
 int main()
 {
@@ -85,7 +85,7 @@ int main()
 void test_init_shoe(uint8_t decks)
 {
     zlog_info(zc, "Initializing a %u deck shoe...", decks);
-    deck_t *shoe = init_deck(decks);
+    Deck *shoe = init_deck(decks);
     print_shoe(shoe);
 
     zlog_info(zc, "Shuffling a %u deck shoe...", decks);
@@ -118,10 +118,10 @@ void test_init_shoe(uint8_t decks)
  *  Returns:
  *      N/A
  */
-void deal_hand(deck_t *shoe)
+void deal_hand(Deck *shoe)
 {
     zlog_info(zc, "Allocate memory for player.");
-    player_t *player = calloc(1, sizeof(player_t));
+    Player *player = calloc(1, sizeof(Player));
 
     if (!player)
     {
@@ -181,7 +181,7 @@ void test_ncurses()
 
     welcome_screen();
 
-    dealer_t *dealer = calloc(1, sizeof(dealer_t));
+    Dealer *dealer = calloc(1, sizeof(Dealer));
     dealer->name = "Dealer";
     dealer->faceup = FALSE;
     strcpy(dealer->hand[0].rank, " A");
@@ -202,7 +202,7 @@ void test_ncurses()
     wgetch(stdscr);
     erase();
 
-    player_t *player = calloc(1, sizeof(player_t));
+    Player *player = calloc(1, sizeof(Player));
     strcpy(player->name, "Charlotte");
     player->money = 12345678;
     strcpy(player->hand1[0].rank, " A");
