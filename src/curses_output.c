@@ -52,7 +52,6 @@
  *  Returns:
  *      N/A
  */
-
 void init_window()
 {
     initscr();              // Initialize ncurses mode
@@ -76,9 +75,13 @@ void init_window()
  *  Returns:
  *      N/A
  */
-
 void end_window()
 {
+    //TODO remove block when program is done or play_game loop is sufficently finished
+    uint16_t columns, lines;
+    getmaxyx(stdscr, lines, columns);
+    mvwaddstr(stdscr, lines - 2, (columns - 35) / 2, "(Game over. Press any key to exit.)");
+    wgetch(stdscr);
     endwin();
 
     return;
@@ -95,7 +98,6 @@ void end_window()
  *  Returns:
  *      N/A
  */
-
 void welcome_screen()
 {
     uint16_t columns, lines;    // the size of stdscr window
@@ -131,86 +133,142 @@ void welcome_screen()
     return;
 }
 
+/***************
+ *  Summary: Display the dealer's hand in its own window
+ *
+ *  Description: Print the dealer's name and hand in a bordered window on the screen
+ *
+ *  Parameter(s):
+ *      dealer: Dealer struct with the dealer's information
+ *
+ *  Returns:
+ *      N/A
+ */
 void display_dealer(Dealer *dealer)
 {
-    WINDOW *dealer_box = newwin(PLAYER_WINDOW_LINE, PLAYER_WINDOW_COLS, 0, 0);
+    WINDOW *dealerWindow = newwin(PLAYER_WINDOW_LINE, PLAYER_WINDOW_COLS, 0, 0);    // TODO change to variable coordinates
 
     // build the strings to be displayed
-    char *name_str = calloc(19, sizeof(char));
-    char *hand_str = calloc(1, sizeof(dealer->hand));
+    char *nameString = calloc(19, sizeof(char));
+    char *handString = calloc(1, sizeof(dealer->hand));
 
-    if (!name_str || !hand_str)
+    if (!nameString || !handString)
     {
-        zlog_error(zc, "Memory allocation for dealer name or hand string failed.");
+        zerror("Memory allocation for dealer name or hand string failed.");
         goto error;
     }
-    snprintf(name_str, 19, "----- %s -----", dealer->name);
+    snprintf(nameString, 19, "----- %s -----", dealer->name);
 
-    char cards[5][8];
-    for (size_t card = 0; card < 5; card++)
-    {
-        snprintf(cards[card], sizeof(cards[card]), "%s%s",
-                dealer->hand[card].rank, dealer->hand[card].suit);
-    }
-    snprintf(hand_str, sizeof(dealer->hand), "%s %s %s %s %s",
-            ((dealer->faceup) ? " XX" : cards[0]), cards[1], cards[2], cards[3], cards[4]);
+    snprintf(handString, sizeof(dealer->hand), "%s %s %s %s %s",
+            ((dealer->faceup) ? dealer->hand[0].face : " XX"), dealer->hand[1].face, dealer->hand[2].face,
+            dealer->hand[3].face, dealer->hand[4].face);
 
-    box(dealer_box, 0, 0);
-    mvwaddstr(dealer_box, 1, 1, name_str);
-    mvwaddstr(dealer_box, 2, 1, hand_str);
-    wrefresh(dealer_box);
-
-//    wgetch(dealer_box);
-    delwin(dealer_box);
+    box(dealerWindow, 0, 0);
+    mvwaddstr(dealerWindow, 1, 1, nameString);
+    mvwaddstr(dealerWindow, 2, 1, handString);
+    wrefresh(dealerWindow);
+    delwin(dealerWindow);
 
 error:
     return;
 }
 
+/***************
+ *  Summary: Display the player's hand in its own window
+ *
+ *  Description: Print the player's name, money and hand in a bordered window on the screen
+ *
+ *  Parameter(s):
+ *      player: Player struct with the player's information
+ *
+ *  Returns:
+ *      N/A
+ */
 void display_player(Player *player)
 {
-    WINDOW *player_box = newwin(PLAYER_WINDOW_LINE, PLAYER_WINDOW_COLS, 8, 0);
+    WINDOW *playerWindow = newwin(PLAYER_WINDOW_LINE, PLAYER_WINDOW_COLS, 8, 0);    // TODO change to variable coordinates
 
     // build the strings to be displayed
-    char *name_str = calloc(19, sizeof(char));
-    char *hnd1_str = calloc(1, sizeof(player->hand1));
-    char *hnd2_str = calloc(1, sizeof(player->hand2));
+    char *nameString = calloc(19, sizeof(char));
+    char *hand1String = calloc(1, sizeof(player->hand1));
+    char *hand2String = calloc(1, sizeof(player->hand2));
 
-    if (!name_str || !hnd1_str ||!hnd2_str)
+    if (!nameString || !hand1String || !hand2String)
     {
-        zlog_error(zc, "Memory allocation failed for player strings.");
+        zerror("Memory allocation failed for player strings.");
         goto error;
     }
 
     // Set up the strings
-    snprintf(name_str, 19, "%-10s $%8u", player->name, player->money);
+    snprintf(nameString, 19, "%-10s $%6u", player->name, player->money);
 
-    char cards[5][8];
-    for (size_t card = 0; card < 5; card++)
-    {
-        snprintf(cards[card], sizeof(cards[card]), "%s%s",
-                player->hand1[card].rank, player->hand1[card].suit);
-    }
-    snprintf(hnd1_str, sizeof(player->hand1), "%s %s %s %s %s",
-            cards[0], cards[1], cards[2], cards[3], cards[4]);
+    snprintf(hand1String, sizeof(player->hand1), "%s %s %s %s %s",
+            player->hand1[0].face, player->hand1[1].face, player->hand1[2].face, player->hand1[3].face, player->hand1[4].face);
 
-    for (size_t card = 0; card < 5; card++)
-    {
-        snprintf(cards[card], sizeof(cards[card]), "%s%s",
-                player->hand2[card].rank, player->hand2[card].suit);
-    }
-    snprintf(hnd2_str, sizeof(player->hand2), "%s %s %s %s %s",
-            cards[0], cards[1], cards[2], cards[3], cards[4]);
+    snprintf(hand2String, sizeof(player->hand2), "%s %s %s %s %s",
+            player->hand2[0].face, player->hand2[1].face, player->hand2[2].face, player->hand2[3].face, player->hand2[4].face);
 
-    box(player_box, 0, 0);
-    mvwaddstr(player_box, 1, 1, name_str);
-    mvwaddstr(player_box, 2, 1, hnd1_str);
-    mvwaddstr(player_box, 3, 1, hnd2_str);
-    wrefresh(player_box);
+    box(playerWindow, 0, 0);
+    mvwaddstr(playerWindow, 1, 1, nameString);
+    mvwaddstr(playerWindow, 2, 1, hand1String);
+    mvwaddstr(playerWindow, 3, 1, hand2String);
+    wrefresh(playerWindow);
 
-//    wgetch(player_box);
-    delwin(player_box);
+    delwin(playerWindow);
 
 error:
     return;
+}
+
+/***************
+ *  Summary: Get a choice from the player on how to play their hand
+ *
+ *  Description: Ask the player how they want to play their hand and return that to the calling routine. Uses an enum
+ *      as the return values.
+ *
+ *  Parameter(s):
+ *      player: Player struct with the player's information
+ *
+ *  Returns:
+ *      N/A
+ */
+PlayerChoice get_player_choice(Player *player)
+{
+    bool choiceMade = FALSE;
+    PlayerChoice choice;
+    char input;
+    
+    mvwaddstr(stdscr, 15, 0, "[S]tand, [H]it, [D]ouble down or S[p]lit? ");
+    echo();
+    
+    while (!choiceMade)
+    {
+        choiceMade = TRUE;
+        input = wgetch(stdscr);
+        switch(input)
+        {
+            case 's':
+            case 'S':
+                choice = STAND;
+                break;
+            case 'h':
+            case 'H':
+                choice = HIT;
+                break;
+            case 'd':
+            case 'D':
+                choice = DOUBLE;
+                break;
+            case 'p':
+            case 'P':
+                choice = SPLIT;
+                break;
+            default:
+                choiceMade = FALSE;
+        }
+    }
+    
+    noecho();
+    
+    return choice;
 }

@@ -69,6 +69,11 @@ typedef struct Table
     Deck *shoe;
 } Table;
 
+typedef enum PlayerChoice
+{
+    STAND, HIT, DOUBLE, SPLIT
+} PlayerChoice;
+
 #define DEBUG 1 // set to 0 to get true random shuffle, etc.
 
 /****************
@@ -76,10 +81,3 @@ typedef struct Table
  ****************/
 
 #endif /* BLACKJACK_H_ */
-
-/*
- * author keri
- *
- * TODO: Use a struct called table to hold the players and dealer? Would also hold the number of
- * players sitting at the table and possibly even the shoe. Mull it over...
- */

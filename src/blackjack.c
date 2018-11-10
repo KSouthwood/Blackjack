@@ -194,7 +194,7 @@ uint8_t get_num_players()
         // convert input to a number and make sure it's in our acceptable range
         if (atoi(&input))
         {
-            numOfPlayers = (atoi(&input) > 5) ? 0 : atoi(&input);
+            numOfPlayers = (atoi(&input) > 5) ? 0 : 1; // TODO change back to atoi(&input) when ready
         }
     }
 
@@ -221,23 +221,25 @@ uint8_t get_num_players()
 Player *init_players(uint8_t num_players)
 {
     Player *players = calloc(num_players, sizeof(Player));
-    zlog_debug(zc, "Pointer to players is %#X", (uint32_t) players);
+    zdebug("Pointer to players is %#X", (uint32_t) players);
     if (players)
     {
         /***** Get player names *****/
         curs_set(CURS_NORMAL); // enable cursor
         mvwaddstr(stdscr, 2, 0, "Player names are limited to 10 characters max.");
+        echo(); // Turn echo on temporarily
         for (uint8_t ii = 0; ii < num_players; ii++)
         {
             mvwprintw(stdscr, 3 + ii, 0, "What is player %i's name? ", ii + 1);
-            echo(); // Turn echo on temporarily
             wgetnstr(stdscr, players[ii].name, 10);
-            noecho();
             players[ii].money = 1000;
         }
+        noecho();
         curs_set(CURS_INVIS); // disable cursor
+        wclear(stdscr); // clear screen before returning
+        wrefresh(stdscr);
     }
-
+    
     return players;
 }
 
@@ -252,7 +254,6 @@ Player *init_players(uint8_t num_players)
  *  Returns:
  *      dealer: a pointer to dealer struct or NULL if an error occurred
  */
-
 Dealer *init_dealer()
 {
     Dealer *dealer = calloc(1, sizeof(Dealer));
@@ -294,7 +295,10 @@ void play_game(Table *table)
     {
         zinfo("Calling deal_hands for initial deal.");
         deal_hands(table);
+        display_dealer(table->dealer);
+        display_player(table->players);
         check_dealer_hand(table->dealer);
+        play_hands(table);
         zdebug("Setting game_over to TRUE to escape loop.");
         game_over = TRUE;
     }
@@ -320,7 +324,7 @@ void play_game(Table *table)
 void deal_hands(Table *table)
 {
     // re-shuffle the deck if we're nearing the end
-    // TODO: Get rid of magic number. Switch to calculated random point or just use a #define
+    // TODO Get rid of magic number. Switch to calculated random point or just use a #define
     if ((table->shoe->cards - table->shoe->left) < (table->shoe->left * 0.8))
     {
         shuffle_cards(table->shoe);
@@ -353,21 +357,73 @@ void deal_hands(Table *table)
  *      bets if we do.
  *
  *  Parameter(s):
- *  	num_players:    number of players at the table
- *      players:        pointer to array of player_t structs
- *      dealer:         pointer to dealer_t struct
+ *      dealer:         pointer to Dealer struct
  *
  *	Returns:
  *		N/A
  */
 void check_dealer_hand(Dealer *dealer)
 {
-    // check for Ace in dealer upcard
-    bool dealer_ace = (strcmp(dealer->hand[1].rank, "A"));
-    bool dealer_21  = (blackjack_count(dealer->hand) == 21);
+    // check for Ace in dealer upcard and offer insurance if it is
+    if (!strcmp(dealer->hand[1].rank, "A"))
+    {
+        zinfo("Dealer is showing an Ace.");
+        //TODO offer players insurance
+    }
 
-    zinfo("%i %i", dealer_ace, dealer_21);
+    // No Ace or we've offered insurance, now check if we have blackjack
+    if (blackjack_count(dealer->hand) == 21)
+    {
+        zinfo("Dealer has blackjack. Players lose.");
+        
+    }
 
     return;
 }
 
+/***************
+ *  Summary: Play each players hand in order
+ *
+ *  Description: Go around the table getting what each player wants to do in order. Move to the next player once the
+ *      current player has chosen stand or gone bust. Return from the function once all players have finished.
+ *
+ *  Parameter(s):
+ *  	table:    the Table struct so we can access numPlayers, players and shoe
+ *
+ *	Returns:
+ *		N/A
+ */
+void play_hands(Table *table)
+{
+    for (uint8_t player = 0; player < table->numPlayers; player++)
+    {
+        Player currentPlayer = table->players[player];
+        
+        bool playHand = TRUE;
+        while (playHand)
+        {
+            display_player(currentPlayer);
+            switch(get_player_choice(currentPlayer))
+            {
+                case STAND:
+                    playHand = FALSE;
+                    break;
+                case HIT:
+                    // get a new card
+                    break;
+                case DOUBLE:
+                    // TODO: double bet and get one card
+                    break;
+                case SPLIT:
+                    // TODO: split cards into two hands
+                    break;
+                default:
+                    // no default case
+                    break;
+            }
+        }
+        
+    }
+    
+    return;
+}

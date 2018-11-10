@@ -27,8 +27,9 @@
 *.i*86
 *.x86_64
 *.hex
-blackjack_test
 blackjack
+test_blackjack
+test_curses
 
 # Debug files
 *.dSYM/
@@ -43,3 +44,6 @@ blackjack
 Managed Build \(Release\)/
 
 \.settings/
+
+# Netbeans project files
+/nbproject/

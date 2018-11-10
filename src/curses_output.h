@@ -61,5 +61,6 @@ void end_window();
 void welcome_screen();
 void display_dealer(Dealer *dealer);
 void display_player(Player *player);
+PlayerChoice get_player_choice(Player *player);
 
 #endif /* CURSES_OUTPUT_H_ */

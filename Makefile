@@ -1,7 +1,10 @@
 blackjack:
 	cd src/ && $(MAKE)
 
-blackjack_test:
-	cd test/ && $(MAKE)
+test_blackjack:
+	cd test/ && $(MAKE) test_blackjack
+
+test_curses:
+	cd test/ && $(MAKE) test_curses
 	
-all: blackjack blackjack_test
+all: blackjack test_blackjack test_curses

@@ -28,7 +28,7 @@
  *  Created on: Oct 24, 2018
  *      Author: Keri Southwood-Smith
  *
- *  Description:
+ *  Description: Start up and end the zlog logging sub-system.
  */
 
 
@@ -54,6 +54,8 @@
  */
 int init_zlog(char *conf_file, char *category)
 {
+    printf("Got conf_file: %s, and category: %s\n", conf_file, category); // TODO remove when finished
+    
     if (zlog_init(conf_file))
     {
         printf("zlog init failed\n");
@@ -77,8 +79,21 @@ int init_zlog(char *conf_file, char *category)
     return 0;
 }
 
+/***************
+ *  Summary: Close down the logging functions
+ *
+ *  Description: Write the final log entries, then shut down the logging sub-system.
+ *
+ *  Parameter(s):
+ *      N/A
+ *
+ *  Returns:
+ *      N/A
+ */
 void end_zlog(void)
 {
+    if (zc) return; // The logging system never started, so don't call the finish routine
+    
     zlog_debug(zc, "");
     zlog_debug(zc, "******************************");
     zlog_debug(zc, "      Logging finished.");

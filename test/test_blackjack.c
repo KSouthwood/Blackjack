@@ -54,18 +54,19 @@ void deal_hand(Deck *shoe);
 int main()
 {
     setlocale(LC_ALL, "");
+    srand(1968);
 
     /****** Initialize logging *****/
     init_zlog("blackjack_test.conf", "test_cat");
 
-    zlog_info(zc, "Starting tests.");
+    zinfo("Starting tests.");
     test_init_shoe(1);
     test_init_shoe(2);
 
-//    zlog_info(zc, "Testing ncurses...");
-//    test_ncurses();
+    zinfo("Testing ncurses...");
+    test_ncurses();
 
-    zlog_info(zc, "Tests finished.");
+    zinfo("Tests finished.");
     end_zlog();
 
     return 0;
@@ -120,7 +121,7 @@ void test_init_shoe(uint8_t decks)
  */
 void deal_hand(Deck *shoe)
 {
-    zlog_info(zc, "Allocate memory for player.");
+    zinfo("Allocate memory for player.");
     Player *player = calloc(1, sizeof(Player));
 
     if (!player)
@@ -139,10 +140,10 @@ void deal_hand(Deck *shoe)
     player->hand1[2] = deal_card(shoe);
 
     printf("Name  : %s\n", player->name);
-    printf("Money : $%d\n", player->money);
-    printf("Hand 1: %s, %s, %s, %s, %s - %d\n", player->hand1[0].face, player->hand1[1].face,
+    printf("Money : $%u\n", player->money);
+    printf("Hand 1: %s, %s, %s, %s, %s - %u\n", player->hand1[0].face, player->hand1[1].face,
             player->hand1[2].face, player->hand1[3].face, player->hand1[4].face, blackjack_count(player->hand1));
-    printf("Hand 2: %s, %s, %s, %s, %s - %d\n\n", player->hand2[0].face, player->hand2[1].face,
+    printf("Hand 2: %s, %s, %s, %s, %s - %u\n\n", player->hand2[0].face, player->hand2[1].face,
             player->hand2[2].face, player->hand2[3].face, player->hand2[4].face, blackjack_count(player->hand2));
 
     free(player);
@@ -162,6 +163,10 @@ void deal_hand(Deck *shoe)
  */
 void test_ncurses()
 {
+    // set-up shoe for use in tests
+    Deck shoe = *init_deck(1);
+    shuffle_cards(&shoe);
+    
     init_window();
 
     uint16_t lines, columns;
@@ -181,13 +186,12 @@ void test_ncurses()
 
     welcome_screen();
 
+    // Test dealer window
     Dealer *dealer = calloc(1, sizeof(Dealer));
     dealer->name = "Dealer";
     dealer->faceup = FALSE;
-    strcpy(dealer->hand[0].rank, " A");
-    strcpy(dealer->hand[0].suit, SPADE);
-    strcpy(dealer->hand[1].rank, "10");
-    strcpy(dealer->hand[1].suit, DIAMOND);
+    dealer->hand[0] = deal_card(&shoe);
+    dealer->hand[1] = deal_card(&shoe);
 
     display_dealer(dealer);
 
@@ -205,7 +209,7 @@ void test_ncurses()
     Player *player = calloc(1, sizeof(Player));
     strcpy(player->name, "Charlotte");
     player->money = 12345678;
-    strcpy(player->hand1[0].rank, " A");
+    strcpy(player->hand1[0].rank, "A");
     strcpy(player->hand1[0].suit, SPADE);
     strcpy(player->hand2[0].rank, "10");
     strcpy(player->hand2[0].suit, DIAMOND);
