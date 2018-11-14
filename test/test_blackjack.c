@@ -23,7 +23,7 @@
  ***********************************************************************************/
 
 /*
- *  blackjack_test.c
+ *  test_blackjack.c
  *
  *  Created on: Oct 11, 2018
  *      Author: Keri Southwood-Smith
@@ -57,14 +57,11 @@ int main()
     srand(1968);
 
     /****** Initialize logging *****/
-    init_zlog("blackjack_test.conf", "test_cat");
+    init_zlog("test_blackjack.conf", "test_cat");
 
     zinfo("Starting tests.");
     test_init_shoe(1);
     test_init_shoe(2);
-
-    zinfo("Testing ncurses...");
-    test_ncurses();
 
     zinfo("Tests finished.");
     end_zlog();
@@ -141,83 +138,11 @@ void deal_hand(Deck *shoe)
 
     printf("Name  : %s\n", player->name);
     printf("Money : $%u\n", player->money);
-    printf("Hand 1: %s, %s, %s, %s, %s - %u\n", player->hand1[0].face, player->hand1[1].face,
+    printf("Hand 1: %s, %s, %s, %s, %s - %hhu\n", player->hand1[0].face, player->hand1[1].face,
             player->hand1[2].face, player->hand1[3].face, player->hand1[4].face, blackjack_count(player->hand1));
-    printf("Hand 2: %s, %s, %s, %s, %s - %u\n\n", player->hand2[0].face, player->hand2[1].face,
+    printf("Hand 2: %s, %s, %s, %s, %s - %hhu\n\n", player->hand2[0].face, player->hand2[1].face,
             player->hand2[2].face, player->hand2[3].face, player->hand2[4].face, blackjack_count(player->hand2));
 
     free(player);
     return;
-}
-
-/***************
- *  Summary: Test instantiation of a deck of cards
- *
- *  Description: Instantiate a deck of cards and print it out to verify correct set-up of cards.
- *
- *  Parameter(s):
- *      N/A
- *
- *  Returns:
- *      N/A
- */
-void test_ncurses()
-{
-    // set-up shoe for use in tests
-    Deck shoe = *init_deck(1);
-    shuffle_cards(&shoe);
-    
-    init_window();
-
-    uint16_t lines, columns;
-    getmaxyx(stdscr, lines, columns);
-
-    char *msg1 = "stdscr has been initialized. Press a key to continue.";
-    char *msg2 = "Testing welcome screen. Press a key to continue.";
-    char *msg3 = "Dealer box tested. Press a key to continue.";
-    char *msg4 = "Player box tested. Press a key to continue.";
-
-    mvwaddstr(stdscr, 1, (columns - strlen(msg1)) / 2, msg1);
-    wgetch(stdscr);
-
-    erase();
-    mvwaddstr(stdscr, 3, (columns - strlen(msg2)) / 2, msg2);
-    wgetch(stdscr);
-
-    welcome_screen();
-
-    // Test dealer window
-    Dealer *dealer = calloc(1, sizeof(Dealer));
-    dealer->name = "Dealer";
-    dealer->faceup = FALSE;
-    dealer->hand[0] = deal_card(&shoe);
-    dealer->hand[1] = deal_card(&shoe);
-
-    display_dealer(dealer);
-
-    mvwaddstr(stdscr, lines - 3, (columns - strlen(msg3)) / 2, msg3);
-    wgetch(stdscr);
-    erase();
-
-    dealer->faceup = TRUE;
-    display_dealer(dealer);
-
-    mvwaddstr(stdscr, lines - 3, (columns - strlen(msg3)) / 2, msg3);
-    wgetch(stdscr);
-    erase();
-
-    Player *player = calloc(1, sizeof(Player));
-    strcpy(player->name, "Charlotte");
-    player->money = 12345678;
-    strcpy(player->hand1[0].rank, "A");
-    strcpy(player->hand1[0].suit, SPADE);
-    strcpy(player->hand2[0].rank, "10");
-    strcpy(player->hand2[0].suit, DIAMOND);
-
-    display_player(player);
-
-    mvwaddstr(stdscr, lines - 2, (columns - strlen(msg4)) / 2, msg4);
-    wgetch(stdscr);
-
-    end_window();
 }

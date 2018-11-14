@@ -54,8 +54,6 @@
  */
 int init_zlog(char *conf_file, char *category)
 {
-    printf("Got conf_file: %s, and category: %s\n", conf_file, category); // TODO remove when finished
-    
     if (zlog_init(conf_file))
     {
         printf("zlog init failed\n");
@@ -92,7 +90,11 @@ int init_zlog(char *conf_file, char *category)
  */
 void end_zlog(void)
 {
-    if (zc) return; // The logging system never started, so don't call the finish routine
+    if (!zc)
+    {
+        printf("zlog was never started.\n");
+        return; // The logging system never started, so don't call the finish routine
+    }
     
     zlog_debug(zc, "");
     zlog_debug(zc, "******************************");

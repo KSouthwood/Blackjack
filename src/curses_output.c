@@ -170,6 +170,8 @@ void display_dealer(Dealer *dealer)
     delwin(dealerWindow);
 
 error:
+    free(nameString);
+    free(handString);
     return;
 }
 
@@ -217,6 +219,9 @@ void display_player(Player *player)
     delwin(playerWindow);
 
 error:
+    free(nameString);
+    free(hand1String);
+    free(hand2String);
     return;
 }
 
@@ -237,6 +242,7 @@ PlayerChoice get_player_choice(Player *player)
     bool choiceMade = FALSE;
     PlayerChoice choice;
     char input;
+    player->money += 0;
     
     mvwaddstr(stdscr, 15, 0, "[S]tand, [H]it, [D]ouble down or S[p]lit? ");
     echo();

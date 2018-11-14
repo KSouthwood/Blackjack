@@ -30,6 +30,8 @@
 #include <stdbool.h>
 #include <time.h>
 #include <ctype.h>
+#include <errno.h>
+#include <limits.h>
 
 #include "curses_output.h"
 #include "logger.h"
@@ -50,6 +52,8 @@ Dealer *init_dealer();
 void play_game(Table *table);
 void deal_hands(Table *table);
 void check_dealer_hand(Dealer *dealer);
+void play_hands(Table *table);
+void get_bets(Table *table);
 
 int main()
 {
@@ -69,6 +73,7 @@ int main()
 
     // create table struct
     Table *table = calloc(1, sizeof(Table));
+    zdebug("table pointer: %#X.", (uint32_t) table);
     if (!table)
     {
         zerror("Couldn't allocate memory for Table struct!");
@@ -79,23 +84,22 @@ int main()
         {
             /***** No breaks or default on purpose *****/
             case NO_ERROR:
-                zinfo("Calling play game with num_players: %i, players: %#X, dealer: %#X.",
+                zinfo("Calling play game with table->numPlayers: %i, table->players: %#X, table->dealer: %#X.",
                         table->numPlayers, (uint32_t) table->players, (uint32_t) table->dealer);
                 play_game(table);
-                zdebug("Freeing memory for Card struct shoe (%#X) in Deck struct shoe.",
-                        (uint32_t) table->shoe->shoe);
+                zdebug("Freeing table->shoe->shoe: %#X.", (uint32_t) table->shoe->shoe);
                 free(table->shoe->shoe);
-                zdebug("Freeing memory for Deck struct shoe (%#X).", (uint32_t) table->shoe);
+                zdebug("Freeing table->shoe: %#X.", (uint32_t) table->shoe);
                 free(table->shoe);
             case DECK_ALLOC:
-                zlog_debug(zc, "Freeing memory for dealer.");
+                zlog_debug(zc, "Freeing table->dealer: %#X.", (uint32_t) table->dealer);
                 free(table->dealer);
             case DEALER_ALLOC:
-                zlog_debug(zc, "Freeing memory for players.");
+                zlog_debug(zc, "Freeing table->players: %#X.", (uint32_t) table->players);
                 free(table->players);
             case PLAYER_ALLOC:
             case PLAYER_QUIT:
-                zdebug("Freeing memory for Table.");
+                zdebug("Freeing table: %#X.", (uint32_t) table);
                 free(table);
         }
     }
@@ -123,7 +127,7 @@ uint8_t setup_table(Table *table)
 {
     // get the number of players at table
     table->numPlayers = get_num_players();
-    if (!table->numPlayers)
+    if (table->numPlayers == 0)
     {
         zdebug("Got 0 back which means player wants to quit.");
         return PLAYER_QUIT;
@@ -131,7 +135,7 @@ uint8_t setup_table(Table *table)
 
     // instantiate player(s)
     table->players = init_players(table->numPlayers);
-    zdebug("players is at %#X.", (uint32_t) table->players);
+    zdebug("table->players pointer: %#X.", (uint32_t) table->players);
     if (!table->players)
     {
         zerror("Couldn't allocate memory for players array.");
@@ -139,7 +143,7 @@ uint8_t setup_table(Table *table)
     }
 
     table->dealer = init_dealer();
-    zdebug("dealer is at %#X.", (uint32_t) table->dealer);
+    zdebug("table->dealer pointer: %#X.", (uint32_t) table->dealer);
     if (!table->dealer)
         {
             zerror("Couldn't allocate memory for dealer struct.");
@@ -149,7 +153,7 @@ uint8_t setup_table(Table *table)
     uint8_t decks = (table->numPlayers < 4) ? 4 : 6; // determine how many decks in the shoe
     zinfo("Instantiating %i decks for %i players.", decks, table->numPlayers);
     table->shoe = init_deck(decks);
-    zdebug("Deck shoe pointer returned as %#X.", (uint32_t) table->shoe);
+    zdebug("table->shoe pointer: %#X.", (uint32_t) table->shoe);
     if(!table->shoe)
     {
         zerror("Couldn't allocate memory for deck of cards.");
@@ -212,32 +216,38 @@ uint8_t get_num_players()
  *      one an initial bank of $1,000.
  *
  *  Parameter(s):
- *      N/A
+ *      numPlayers: the number of player structs to set up. Must be between 1 and 5 inclusive.
  *
  *  Returns:
  *      players: a pointer to an array of player structs with their name and initial amount of money
  *          or NULL if we couldn't allocate memory
  */
-Player *init_players(uint8_t num_players)
+Player *init_players(uint8_t numPlayers)
 {
-    Player *players = calloc(num_players, sizeof(Player));
-    zdebug("Pointer to players is %#X", (uint32_t) players);
+    if (numPlayers < 1 || numPlayers > 5)
+    {
+        zdebug("numPlayers value passed in is out of range. Got %u when it should be 1-5.", numPlayers);
+        return NULL;
+    }
+    
+    Player *players = calloc(numPlayers, sizeof(Player));
+    zdebug("players pointer: %#X.", (uint32_t) players);
     if (players)
     {
         /***** Get player names *****/
         curs_set(CURS_NORMAL); // enable cursor
         mvwaddstr(stdscr, 2, 0, "Player names are limited to 10 characters max.");
         echo(); // Turn echo on temporarily
-        for (uint8_t ii = 0; ii < num_players; ii++)
+        for (uint8_t ii = 0; ii < numPlayers; ii++)
         {
             mvwprintw(stdscr, 3 + ii, 0, "What is player %i's name? ", ii + 1);
             wgetnstr(stdscr, players[ii].name, 10);
             players[ii].money = 1000;
         }
         noecho();
-        curs_set(CURS_INVIS); // disable cursor
-        wclear(stdscr); // clear screen before returning
-        wrefresh(stdscr);
+        curs_set(CURS_INVIS);   // disable cursor
+        wclear(stdscr);         // clear screen before returning
+        wrefresh(stdscr);       // display the screen
     }
     
     return players;
@@ -257,7 +267,7 @@ Player *init_players(uint8_t num_players)
 Dealer *init_dealer()
 {
     Dealer *dealer = calloc(1, sizeof(Dealer));
-    zlog_debug(zc, "Pointer to dealer is %#X", (uint32_t) dealer);
+    zdebug("Dealer pointer: %#X", (uint32_t) dealer);
 
     if (dealer)
     {
@@ -293,10 +303,15 @@ void play_game(Table *table)
     bool game_over = FALSE;
     while (!game_over)
     {
+        zinfo("Get bets from players.");
+        get_bets(table);
         zinfo("Calling deal_hands for initial deal.");
         deal_hands(table);
         display_dealer(table->dealer);
-        display_player(table->players);
+        for (uint8_t i = 0; i < table->numPlayers; i++)
+        {
+            display_player(&table->players[i]);
+        }
         check_dealer_hand(table->dealer);
         play_hands(table);
         zdebug("Setting game_over to TRUE to escape loop.");
@@ -402,8 +417,8 @@ void play_hands(Table *table)
         bool playHand = TRUE;
         while (playHand)
         {
-            display_player(currentPlayer);
-            switch(get_player_choice(currentPlayer))
+            display_player(&currentPlayer);
+            switch(get_player_choice(&currentPlayer))
             {
                 case STAND:
                     playHand = FALSE;
@@ -425,5 +440,61 @@ void play_hands(Table *table)
         
     }
     
+    return;
+}
+
+void get_bets(Table *table)
+{
+    zinfo("Set variables");
+    char input[8];
+    char *endptr = NULL;
+    long bet = 0;
+    echo();
+    
+    zinfo("Start player loop.");
+    for (uint8_t player = 0; player < table->numPlayers; player++)
+    {
+        zinfo("Input while loop");
+        bool validBet = FALSE;
+        while (!validBet)
+        {
+            zinfo("Print prompt and get input");
+            wmove(stdscr, LINES - 3, 0);
+            wclrtobot(stdscr);
+            refresh();
+            mvwaddstr(stdscr, LINES - 3, 0, "How much money do you wish to bet? ");
+            wgetnstr(stdscr, input, 7);
+            
+            zinfo("Convert input to long.");
+            errno = 0;
+            bet = strtol(input, &endptr, 10);
+            // check for errors
+            zinfo("Check for input range error.");
+            if ((errno = ERANGE && (bet == LONG_MAX || bet == LONG_MIN)) || // returned value out of range
+                    (errno != 0 && bet == 0) ||                             // ??
+                    (endptr == input))                                      // no digits found in input
+            {
+                continue;
+            }
+            
+            zinfo("Check bet amount is between 0 and amount of player money.");
+            if ((bet >= 0) && (bet <= table->players->money))
+            {
+                table->players->bet = (uint32_t) bet;
+                table->players->money -= (uint32_t) bet;
+                validBet = TRUE;
+            }
+            else
+            {
+                char output[80];
+                snprintf(output, 80, "Invalid amount bet. Must be between 0 and %7u.\nPress a key to try again.", table->players->money);
+                mvwaddstr(stdscr, LINES - 2, 0, output);
+                wrefresh(stdscr);
+                wgetch(stdscr);
+            }
+        }
+    }
+    
+    noecho();
     return;
 }
