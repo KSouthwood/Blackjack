@@ -68,9 +68,10 @@ int main(void)
     char *msg5 = "Player box tested. Press a key to continue.";
     
     zinfo("Create and shuffle deck.");
-    Table *table = calloc(1, sizeof(Table));
-    table->shoe = init_deck(1);
-    shuffle_cards(table->shoe);
+//    Table *table = calloc(1, sizeof(Table));
+    Table table;
+    table.shoe = init_deck(1);
+    shuffle_cards(table.shoe);
     
     // Initialize the curses system
     zinfo("Initialize the curses system.");
@@ -88,43 +89,44 @@ int main(void)
     
     // Test the dealer window
     zinfo("Setting up dealer.");
-    table->dealer = calloc(1, sizeof(Dealer));
-    table->dealer->name = "Dealer";
-    table->dealer->faceup = FALSE;
-    table->dealer->hand[0] = deal_card(table->shoe);
-    table->dealer->hand[1] = deal_card(table->shoe);
+    table.dealer = calloc(1, sizeof(Dealer));
+//    table.dealer->name = "Dealer";
+    strncpy(table.dealer->name, "Dealer", 7);
+    table.dealer->faceup = FALSE;
+    table.dealer->hand.hand[table.dealer->hand.numCards++] = deal_card(table.shoe);
+    table.dealer->hand.hand[table.dealer->hand.numCards++] = deal_card(table.shoe);
     
     zinfo("Calling dealer window with hole card down.");
-    display_dealer(table->dealer);
+    display_dealer(table.dealer);
     mvwaddstr(stdscr, lines - 5, CENTER(msg3), msg3);
     wgetch(stdscr);
     
     zinfo("Calling dealer window with both cards up.");
-    table->dealer->faceup = TRUE;
-    display_dealer(table->dealer);
+    table.dealer->faceup = TRUE;
+    display_dealer(table.dealer);
     mvwaddstr(stdscr, lines - 4, CENTER(msg4), msg4);
     wgetch(stdscr);
     
     zinfo("Setting up player.");
-    table->players = calloc(1, sizeof(Player));
-    strncpy(table->players[0].name, "Charlotte", 10);
-    table->players[0].money = 99999;
-    table->players[0].hand1[0] = deal_card(table->shoe);
-    table->players[0].hand1[1] = deal_card(table->shoe);
-    table->players[0].hand2[0] = deal_card(table->shoe);
-    table->players[0].hand2[1] = deal_card(table->shoe);
+    table.players = calloc(1, sizeof(Player));
+    strncpy(table.players[0].name, "Charlotte", 10);
+    table.players[0].money = 99999;
+    table.players[0].hand1.hand[table.players[0].hand1.numCards++] = deal_card(table.shoe);
+    table.players[0].hand1.hand[table.players[0].hand1.numCards++] = deal_card(table.shoe);
+    table.players[0].hand2.hand[table.players[0].hand2.numCards++] = deal_card(table.shoe);
+    table.players[0].hand2.hand[table.players[0].hand2.numCards++] = deal_card(table.shoe);
     
     zinfo("Calline player window.");
-    display_player(&table->players[0]);
+    display_player(&table.players[0]);
     mvwaddstr(stdscr, lines - 3, CENTER(msg5), msg5);
     wgetch(stdscr);
     
     zinfo("Freeing memory allocations.");
-    free(table->players);
-    free(table->dealer);
-    free(table->shoe->shoe);
-    free(table->shoe);
-    free(table);
+    free(table.players);
+    free(table.dealer);
+    free(table.shoe->shoe);
+    free(table.shoe);
+//    free(table);
     
     zinfo("Terminating curses mode.");
     end_window();

@@ -41,14 +41,12 @@
 
 #include "../src/logger.h"
 #include "../src/deck_of_cards.h"
-#include "../src/curses_output.h"
 #include "../src/blackjack.h"
 
 /****************
  * DECLARATIONS *
  ****************/
 void test_init_shoe(uint8_t decks);
-void test_ncurses();
 void deal_hand(Deck *shoe);
 
 int main()
@@ -82,26 +80,28 @@ int main()
  */
 void test_init_shoe(uint8_t decks)
 {
+    Table *table = calloc(1, sizeof(Table));
+    
     zlog_info(zc, "Initializing a %u deck shoe...", decks);
-    Deck *shoe = init_deck(decks);
-    print_shoe(shoe);
+    table->shoe = init_deck(decks);
+    print_shoe(table->shoe);
 
     zlog_info(zc, "Shuffling a %u deck shoe...", decks);
-    shuffle_cards(shoe);
-    print_shoe(shoe);
+    shuffle_cards(table->shoe);
+    print_shoe(table->shoe);
 
     zlog_info(zc, "Deal 5 cards...");
-    deal_hand(shoe);
+    deal_hand(table->shoe);
 
     zlog_info(zc, "Re-shuffling a %u deck shoe...", decks);
-    shuffle_cards(shoe);
-    print_shoe(shoe);
+    shuffle_cards(table->shoe);
+    print_shoe(table->shoe);
 
     zlog_info(zc, "Deal 5 cards...");
-    deal_hand(shoe);
+    deal_hand(table->shoe);
 
-    free(shoe->shoe);
-    free(shoe);
+    free(table->shoe->shoe);
+    free(table->shoe);
     return;
 }
 
@@ -130,18 +130,18 @@ void deal_hand(Deck *shoe)
     zlog_info(zc, "Setting up player.");
     strcpy(player->name, "John Doe");
     player->money = 9999;
-    player->hand1[0] = deal_card(shoe);
-    player->hand2[0] = deal_card(shoe);
-    player->hand1[1] = deal_card(shoe);
-    player->hand2[1] = deal_card(shoe);
-    player->hand1[2] = deal_card(shoe);
+    player->hand1.hand[player->hand1.numCards++] = deal_card(shoe);
+    player->hand2.hand[player->hand2.numCards++] = deal_card(shoe);
+    player->hand1.hand[player->hand1.numCards++] = deal_card(shoe);
+    player->hand2.hand[player->hand2.numCards++] = deal_card(shoe);
+    player->hand1.hand[player->hand1.numCards++] = deal_card(shoe);
 
     printf("Name  : %s\n", player->name);
     printf("Money : $%u\n", player->money);
-    printf("Hand 1: %s, %s, %s, %s, %s - %hhu\n", player->hand1[0].face, player->hand1[1].face,
-            player->hand1[2].face, player->hand1[3].face, player->hand1[4].face, blackjack_count(player->hand1));
-    printf("Hand 2: %s, %s, %s, %s, %s - %hhu\n\n", player->hand2[0].face, player->hand2[1].face,
-            player->hand2[2].face, player->hand2[3].face, player->hand2[4].face, blackjack_count(player->hand2));
+    printf("Hand 1: %5s, %5s, %5s, %5s, %5s - %hhu\n", player->hand1.hand[0].face, player->hand1.hand[1].face,
+            player->hand1.hand[2].face, player->hand1.hand[3].face, player->hand1.hand[4].face, blackjack_count(player->hand1.hand));
+    printf("Hand 2: %5s, %5s, %5s, %5s, %5s - %hhu\n\n", player->hand2.hand[0].face, player->hand2.hand[1].face,
+            player->hand2.hand[2].face, player->hand2.hand[3].face, player->hand2.hand[4].face, blackjack_count(player->hand2.hand));
 
     free(player);
     return;

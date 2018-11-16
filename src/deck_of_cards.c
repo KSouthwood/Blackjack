@@ -138,7 +138,7 @@ void print_shoe(Deck *shoe)
 
     for (uint16_t card = 0; card < shoe->cards; card++)
     {
-        printf("%4s", shoe->shoe[card].face);
+        printf("%5s", shoe->shoe[card].face);
         printf("%s", ((card + 1) % 13) == 0 ? "\n" : ", ");
     }
     printf("\n");
@@ -165,7 +165,6 @@ Card deal_card(Deck *shoe)
 
 uint8_t blackjack_count(Card *hand)
 {
-//    card_t *emptyCard = calloc(1, sizeof(card_t));
     bool softCount = false;
     bool hasAce = false;
     uint8_t card = 0;
@@ -201,7 +200,7 @@ uint8_t blackjack_count(Card *hand)
             }
             else
             {
-                count = 0;
+//                count = 0;  // TODO: uncomment if needed
                 break;      // player/dealer is over 21, no need to keep going so break out of loop
             }
         }

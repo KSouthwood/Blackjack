@@ -150,7 +150,7 @@ void display_dealer(Dealer *dealer)
 
     // build the strings to be displayed
     char *nameString = calloc(19, sizeof(char));
-    char *handString = calloc(1, sizeof(dealer->hand));
+    char *handString = calloc(1, sizeof(dealer->hand.hand));
 
     if (!nameString || !handString)
     {
@@ -159,9 +159,9 @@ void display_dealer(Dealer *dealer)
     }
     snprintf(nameString, 19, "----- %s -----", dealer->name);
 
-    snprintf(handString, sizeof(dealer->hand), "%s %s %s %s %s",
-            ((dealer->faceup) ? dealer->hand[0].face : " XX"), dealer->hand[1].face, dealer->hand[2].face,
-            dealer->hand[3].face, dealer->hand[4].face);
+    snprintf(handString, sizeof(dealer->hand.hand), "%s %s %s %s %s",
+            ((dealer->faceup) ? dealer->hand.hand[0].face : " XX"), dealer->hand.hand[1].face,
+            dealer->hand.hand[2].face, dealer->hand.hand[3].face, dealer->hand.hand[4].face);
 
     box(dealerWindow, 0, 0);
     mvwaddstr(dealerWindow, 1, 1, nameString);
@@ -205,10 +205,12 @@ void display_player(Player *player)
     snprintf(nameString, 19, "%-10s $%6u", player->name, player->money);
 
     snprintf(hand1String, sizeof(player->hand1), "%s %s %s %s %s",
-            player->hand1[0].face, player->hand1[1].face, player->hand1[2].face, player->hand1[3].face, player->hand1[4].face);
+            player->hand1.hand[0].face, player->hand1.hand[1].face, player->hand1.hand[2].face,
+            player->hand1.hand[3].face, player->hand1.hand[4].face);
 
     snprintf(hand2String, sizeof(player->hand2), "%s %s %s %s %s",
-            player->hand2[0].face, player->hand2[1].face, player->hand2[2].face, player->hand2[3].face, player->hand2[4].face);
+            player->hand2.hand[0].face, player->hand2.hand[1].face, player->hand2.hand[2].face,
+            player->hand2.hand[3].face, player->hand2.hand[4].face);
 
     box(playerWindow, 0, 0);
     mvwaddstr(playerWindow, 1, 1, nameString);

@@ -54,6 +54,9 @@ void deal_hands(Table *table);
 void check_dealer_hand(Dealer *dealer);
 void play_hands(Table *table);
 void get_bets(Table *table);
+void play_dealer_hand(Dealer *dealer, Deck *shoe);
+bool double_down(Player player);
+void check_table(Table table, bool dealerBlackjack);
 
 int main()
 {
@@ -141,7 +144,7 @@ uint8_t setup_table(Table *table)
         zerror("Couldn't allocate memory for players array.");
         return PLAYER_ALLOC;
     }
-
+    
     table->dealer = init_dealer();
     zdebug("table->dealer pointer: %#X.", (uint32_t) table->dealer);
     if (!table->dealer)
@@ -226,7 +229,7 @@ Player *init_players(uint8_t numPlayers)
 {
     if (numPlayers < 1 || numPlayers > 5)
     {
-        zdebug("numPlayers value passed in is out of range. Got %u when it should be 1-5.", numPlayers);
+        zerror("numPlayers value passed in is out of range. Got %u when it should be 1-5.", numPlayers);
         return NULL;
     }
     
@@ -271,7 +274,7 @@ Dealer *init_dealer()
 
     if (dealer)
     {
-        dealer->name = "Dealer";
+        strncpy(dealer->name, "Dealer", 7);
         dealer->faceup = FALSE;
     }
 
@@ -301,21 +304,24 @@ void play_game(Table *table)
 
     zdebug("Setting game_over flag and starting game loop.");
     bool game_over = FALSE;
+    uint8_t hands = 3;  // TODO: remove
     while (!game_over)
     {
-        zinfo("Get bets from players.");
-        get_bets(table);
-        zinfo("Calling deal_hands for initial deal.");
-        deal_hands(table);
         display_dealer(table->dealer);
         for (uint8_t i = 0; i < table->numPlayers; i++)
         {
             display_player(&table->players[i]);
         }
-        check_dealer_hand(table->dealer);
+        zinfo("Get bets from players.");
+        get_bets(table);
+        zinfo("Calling deal_hands for initial deal.");
+        deal_hands(table);
+        check_dealer_hand(table->dealer); // TODO: make boolean function
         play_hands(table);
+        play_dealer_hand(table->dealer, table->shoe);
+        check_table(*table, FALSE);
         zdebug("Setting game_over to TRUE to escape loop.");
-        game_over = TRUE;
+        game_over = (hands--) ? FALSE : TRUE;
     }
 
     return;
@@ -345,21 +351,37 @@ void deal_hands(Table *table)
         shuffle_cards(table->shoe);
     }
 
+    // Reset players & dealer number of cards to 0
+    for (uint8_t i = 0; i < table->numPlayers; i++)
+    {
+        table->players[i].hand1.numCards = 0;
+        table->players[i].hand2.numCards = 0;
+    }
+    table->dealer->hand.numCards = 0;
+    
+    // deal two cards to players and dealer
     for (uint8_t c = 0; c < 2; c++)
     {
         for (uint8_t i = 0; i < table->numPlayers; i++)
         {
-            table->players[i].hand1[c] = deal_card(table->shoe);
-            zinfo("Player %i got card: %s", i, table->players[i].hand1[c].face);
+            table->players[i].hand1.hand[table->players->hand1.numCards++] = deal_card(table->shoe);
+            zinfo("Player %i got card: %s", i, table->players[i].hand1.hand[c].face);
         }
 
-        table->dealer->hand[c] = deal_card(table->shoe);
-        zinfo("Dealer got card: %s", table->dealer->hand[c].face);
+        table->dealer->hand.hand[table->dealer->hand.numCards++] = deal_card(table->shoe);
+        zinfo("Dealer got card: %s", table->dealer->hand.hand[c].face);
     }
 
     zinfo("Set dealer faceup flag to false. Returning.");
     table->dealer->faceup = false;
 
+    // display player and dealer hands
+    display_dealer(table->dealer);
+    for (uint8_t i = 0; i < table->numPlayers; i++)
+    {
+        display_player(&table->players[i]);
+    }
+    
     return;
 }
 
@@ -372,7 +394,7 @@ void deal_hands(Table *table)
  *      bets if we do.
  *
  *  Parameter(s):
- *      dealer:         pointer to Dealer struct
+ *      dealer: pointer to Dealer struct
  *
  *	Returns:
  *		N/A
@@ -380,17 +402,17 @@ void deal_hands(Table *table)
 void check_dealer_hand(Dealer *dealer)
 {
     // check for Ace in dealer upcard and offer insurance if it is
-    if (!strcmp(dealer->hand[1].rank, "A"))
+    if (!strcmp(dealer->hand.hand[1].rank, "A"))
     {
         zinfo("Dealer is showing an Ace.");
         //TODO offer players insurance
     }
 
     // No Ace or we've offered insurance, now check if we have blackjack
-    if (blackjack_count(dealer->hand) == 21)
+    if (blackjack_count(dealer->hand.hand) == 21)
     {
         zinfo("Dealer has blackjack. Players lose.");
-        
+        //TODO: Take all players money - dealer blackjack
     }
 
     return;
@@ -425,9 +447,15 @@ void play_hands(Table *table)
                     break;
                 case HIT:
                     // get a new card
+                    currentPlayer.hand1.hand[currentPlayer.hand1.numCards++] = deal_card(table->shoe);
+                    if (blackjack_count(currentPlayer.hand1.hand) > 21) playHand = FALSE;    // player busted
                     break;
                 case DOUBLE:
-                    // TODO: double bet and get one card
+                    if (double_down(currentPlayer))
+                    {
+                        currentPlayer.hand1.hand[currentPlayer.hand1.numCards++] = deal_card(table->shoe);
+                        playHand = FALSE;
+                    }
                     break;
                 case SPLIT:
                     // TODO: split cards into two hands
@@ -443,6 +471,17 @@ void play_hands(Table *table)
     return;
 }
 
+/***************
+ *  Summary: Instantiate the dealer
+ *
+ *  Description: Set's up the dealer struct to initial values
+ *
+ *  Parameter(s):
+ *      N/A
+ *
+ *  Returns:
+ *      dealer: a pointer to dealer struct or NULL if an error occurred
+ */
 void get_bets(Table *table)
 {
     zinfo("Set variables");
@@ -478,16 +517,17 @@ void get_bets(Table *table)
             }
             
             zinfo("Check bet amount is between 0 and amount of player money.");
-            if ((bet >= 0) && (bet <= table->players->money))
+            if ((bet >= 0) && (bet <= table->players[player].money))
             {
-                table->players->bet = (uint32_t) bet;
-                table->players->money -= (uint32_t) bet;
+                table->players[player].bet = (uint32_t) bet;
+                table->players[player].money -= (uint32_t) bet;
                 validBet = TRUE;
             }
             else
             {
                 char output[80];
-                snprintf(output, 80, "Invalid amount bet. Must be between 0 and %7u.\nPress a key to try again.", table->players->money);
+                snprintf(output, 80, "Invalid amount bet. Must be between 0 and %7u.\nPress a key to try again.",
+                        table->players[player].money);
                 mvwaddstr(stdscr, LINES - 2, 0, output);
                 wrefresh(stdscr);
                 wgetch(stdscr);
@@ -496,5 +536,125 @@ void get_bets(Table *table)
     }
     
     noecho();
+    return;
+}
+
+/***************
+ *  Summary: Play the dealers hand
+ *
+ *  Description: Play the dealer hand by hitting if we are at 16 or less. We stand at 17 or more regardless of
+ *      if it is a soft or hard count.
+ *
+ *  Parameter(s):
+ *      dealer: Dealer struct with dealer's hand
+ *      shoe:   shoe of cards to deal a card from if needed
+ *
+ *  Returns:
+ *      N/A
+ */
+void play_dealer_hand(Dealer *dealer, Deck *shoe)
+{
+    zinfo("Set dealer->faceup flag to TRUE.");
+    dealer->faceup = TRUE;
+    display_dealer(dealer);
+    
+    while (blackjack_count(dealer->hand.hand) < 17)
+    {
+        dealer->hand.hand[dealer->hand.numCards++] = deal_card(shoe);
+        zinfo("Dealer got dealt %s.", dealer->hand.hand[dealer->hand.numCards].face);
+        display_dealer(dealer);
+    }
+    
+    zinfo("Dealer is at 17 or greater. Standing.");
+    return;
+}
+
+/***************
+ *  Summary: Handle the double down player option
+ *
+ *  Description: Player has chosen the double down option which involves dealing an extra card and doubling their bet.
+ *      We need to make sure they have enough money before we allow the double down.
+ *
+ *  Parameter(s):
+ *      player: Player struct with player's hand
+ *
+ *  Returns:
+ *      bool:   TRUE if we could double down, FALSE if couldn't
+ */
+bool double_down(Player player)
+{
+    // check we have enough money to double down
+    if (player.bet > player.money)
+    {
+        // todo: print error message here??
+        return FALSE;
+    }
+    
+    player.money -= player.bet;
+    player.bet *=2;
+    return TRUE;
+}
+
+/***************
+ *  Summary: Compare player and dealer hands
+ *
+ *  Description: Compare the player and dealer hands and pay out or collect bets as required.
+ *      Compare player hand to dealer hand to determine either player won or lost.
+ *      Dealer blackjack overrides comparisions and is automatic loss for player.
+ *      Player insurance pays only if dealer blackjack has occured.
+ *
+ *  Parameter(s):
+ *      table: pointer to Table struct
+ *      dealerBlackjack: boolean if dealer has blackjack
+ *
+ *  Returns:
+ *      N/A
+ */
+void check_table(Table table, bool dealerBlackjack)
+{
+    bool playerWon;
+    uint8_t playerCount;
+    uint8_t dealerCount = blackjack_count(table.dealer->hand.hand);
+    
+    for (uint8_t player = 0; player < table.numPlayers; player++)
+    {
+        // determine if player has won or not
+        playerWon = FALSE;
+        if (dealerBlackjack == FALSE)   // check players hand only if dealer doesn't have blackjack
+        {
+            playerCount = blackjack_count(table.players[player].hand1.hand);
+            if (playerCount <= 21)      // make sure player hasn't gone over 21
+            {
+                if (dealerCount > 21 || playerCount >= dealerCount)
+                {
+                    playerWon = TRUE;   // player has won only if dealer busted or we have higher count
+                                        // also TRUE if playerCount equals dealerCount which is a tie
+                }
+            }
+        }
+        
+        // handle pay out or collection
+        if (playerWon == TRUE)
+        {
+            if  (playerCount == dealerCount)
+            {
+                table.players[player].money += table.players[player].bet;
+            }
+            else
+            {
+                table.players[player].money += 2 * table.players[player].bet;
+                if (playerCount == 21 && table.players[player].hand1.numCards == 2) // it's blackjack
+                {
+                    table.players[player].money += table.players[player].bet / 2;
+                }
+            }
+        }
+        
+        // TODO: handle insurance bets here
+        
+        // reset bet amount here
+        table.players[player].bet = 0;
+    }
+
     return;
 }

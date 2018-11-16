@@ -45,20 +45,26 @@
 /***********
  * DEFINES *
  ***********/
+typedef struct Hand
+{
+    Card hand[5];
+    uint8_t numCards;
+} Hand;
+
 typedef struct Player
 {
     char name[11];
     uint32_t money;
     uint32_t bet;
-    Card hand1[5];
-    Card hand2[5];
+    Hand hand1;
+    Hand hand2;
 } Player;
 
 typedef struct Dealer
 {
-    Card hand[5];
-    char *name;
-    bool faceup;
+    Hand hand;
+    char name[7];
+    bool faceup;    // TRUE to show card
 } Dealer;
 
 typedef struct Table

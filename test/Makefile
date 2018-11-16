@@ -10,9 +10,9 @@ CURSES = test_curses
 EXES = $(TEST) $(CURSES)
 
 # space-separated list of header files
-HDRS = ../src/deck_of_cards.h ../src/curses_output.h ../src/logger.h ../src/blackjack.h ../src/unicode_box_chars.h
+HDRS = ../src/deck_of_cards.h ../src/logger.h ../src/blackjack.h ../src/unicode_box_chars.h
 TEST_HDRS = $(HDRS)
-CURSES_HDRS = $(HDRS)
+CURSES_HDRS = $(HDRS) ../src/curses_output.h
 
 # space-separated list of libraries, if any,
 # each of which should be prefixed with -l
@@ -20,9 +20,9 @@ LIBS = -lncursesw -lzlog -lpthread
 TEST_LIBS = $(LIBS)
 
 # space-separated list of source files
-SRCS = ../src/deck_of_cards.c ../src/curses_output.c ../src/logger.c
+SRCS = ../src/deck_of_cards.c ../src/logger.c
 TEST_SRCS = test_blackjack.c $(SRCS)
-CURSES_SRCS = test_curses.c $(SRCS)
+CURSES_SRCS = test_curses.c $(SRCS) ../src/curses_output.c
 
 # automatically generated list of object files
 TEST_OBJS = $(TEST_SRCS:.c=.o)
@@ -33,7 +33,7 @@ all:	$(EXES)
 $(TEST): $(TEST_OBJS) $(TEST_HDRS) Makefile
 	$(CC) $(CFLAGS) -o $@ $(TEST_OBJS) $(TEST_LIBS)
 	
-$(CURSES): $(CURSES_OBJS) $(HDRS) Makefile
+$(CURSES): $(CURSES_OBJS) $(CURSES_HDRS) Makefile
 	$(CC) $(CFLAGS) -o $@ $(CURSES_OBJS) $(LIBS)
 	
 # dependencies
@@ -42,4 +42,4 @@ $(CURSES_OBJS): $(HDRS) Makefile
 
 # housekeeping
 clean:
-	rm -f core $(EXES) *.o
+	rm -f core $(EXES) *.o log/*
