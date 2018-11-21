@@ -32,6 +32,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
+#include <unistd.h>
 
 #include "curses_output.h"
 #include "logger.h"
@@ -246,6 +247,9 @@ Player *init_players(uint8_t numPlayers)
             mvwprintw(stdscr, 3 + ii, 0, "What is player %i's name? ", ii + 1);
             wgetnstr(stdscr, players[ii].name, 10);
             players[ii].money = 1000;
+            players[ii].bet = 0;
+            players[ii].hand1.numCards = 0;
+            players[ii].hand2.numCards = 0;
         }
         noecho();
         curs_set(CURS_INVIS);   // disable cursor
@@ -276,6 +280,7 @@ Dealer *init_dealer()
     {
         strncpy(dealer->name, "Dealer", 7);
         dealer->faceup = FALSE;
+        dealer->hand.numCards = 0;
     }
 
     return dealer;
@@ -304,9 +309,12 @@ void play_game(Table *table)
 
     zdebug("Setting game_over flag and starting game loop.");
     bool game_over = FALSE;
-    uint8_t hands = 3;  // TODO: remove
+    uint8_t hands = 5;  // TODO: remove
     while (!game_over)
     {
+        zinfo("Display windows.");
+        wclear(stdscr);
+        wrefresh(stdscr);
         display_dealer(table->dealer);
         for (uint8_t i = 0; i < table->numPlayers; i++)
         {
@@ -316,12 +324,23 @@ void play_game(Table *table)
         get_bets(table);
         zinfo("Calling deal_hands for initial deal.");
         deal_hands(table);
-        check_dealer_hand(table->dealer); // TODO: make boolean function
+        zinfo("Check dealer hand for blackjack.");
+        check_dealer_hand(table->dealer); // TODO: make boolean function so we can skip player hands
         play_hands(table);
+        zinfo("Player %s has %u cards.", table->players[0].name, table->players[0].hand1.numCards);
         play_dealer_hand(table->dealer, table->shoe);
+        zinfo("******************************");
         check_table(*table, FALSE);
-        zdebug("Setting game_over to TRUE to escape loop.");
-        game_over = (hands--) ? FALSE : TRUE;
+        zinfo("******************************");
+        game_over = (--hands) ? FALSE : TRUE;
+        if (game_over)
+        {
+            zdebug("Setting game_over to TRUE to escape loop.");
+        }
+        else
+        {
+            zdebug("Playing %u more hands.", hands);
+        }
     }
 
     return;
@@ -356,8 +375,11 @@ void deal_hands(Table *table)
     {
         table->players[i].hand1.numCards = 0;
         table->players[i].hand2.numCards = 0;
+        memset(table->players[i].hand1.hand, '\0', sizeof(table->players[i].hand1.hand));
+        memset(table->players[i].hand2.hand, '\0', sizeof(table->players[i].hand2.hand));
     }
     table->dealer->hand.numCards = 0;
+    memset(table->dealer->hand.hand, '\0', sizeof(table->dealer->hand.hand));
     
     // deal two cards to players and dealer
     for (uint8_t c = 0; c < 2; c++)
@@ -401,6 +423,13 @@ void deal_hands(Table *table)
  */
 void check_dealer_hand(Dealer *dealer)
 {
+    // if our upcard is not a face card or Ace, no need to run the checks
+    if (dealer->hand.hand[1].value < 10)
+    {
+        zinfo("Upcard is not an Ace or face card. Exiting check.");
+        return;
+    }
+    
     // check for Ace in dealer upcard and offer insurance if it is
     if (!strcmp(dealer->hand.hand[1].rank, "A"))
     {
@@ -409,7 +438,7 @@ void check_dealer_hand(Dealer *dealer)
     }
 
     // No Ace or we've offered insurance, now check if we have blackjack
-    if (blackjack_count(dealer->hand.hand) == 21)
+    if (blackjack_count(dealer->hand) == 21)
     {
         zinfo("Dealer has blackjack. Players lose.");
         //TODO: Take all players money - dealer blackjack
@@ -434,27 +463,29 @@ void play_hands(Table *table)
 {
     for (uint8_t player = 0; player < table->numPlayers; player++)
     {
-        Player currentPlayer = table->players[player];
-        
+        Player *currentPlayer = &table->players[player];
+        zinfo("***** Playing %s's hand. *****", currentPlayer->name);
         bool playHand = TRUE;
         while (playHand)
         {
-            display_player(&currentPlayer);
-            switch(get_player_choice(&currentPlayer))
+            display_player(currentPlayer);
+            switch(get_player_choice(currentPlayer))
             {
                 case STAND:
                     playHand = FALSE;
                     break;
                 case HIT:
                     // get a new card
-                    currentPlayer.hand1.hand[currentPlayer.hand1.numCards++] = deal_card(table->shoe);
-                    if (blackjack_count(currentPlayer.hand1.hand) > 21) playHand = FALSE;    // player busted
+                    currentPlayer->hand1.hand[currentPlayer->hand1.numCards++] = deal_card(table->shoe);
+                    zinfo("Player %u got card %s.", player, currentPlayer->hand1.hand[currentPlayer->hand1.numCards - 1].face);
+                    if (blackjack_count(currentPlayer->hand1) > 21) playHand = FALSE;    // player busted
                     break;
                 case DOUBLE:
-                    if (double_down(currentPlayer))
+                    if (double_down(*currentPlayer))
                     {
-                        currentPlayer.hand1.hand[currentPlayer.hand1.numCards++] = deal_card(table->shoe);
+                        currentPlayer->hand1.hand[currentPlayer->hand1.numCards++] = deal_card(table->shoe);
                         playHand = FALSE;
+                        zinfo("Player %u got card %s.", player, currentPlayer->hand1.hand[currentPlayer->hand1.numCards - 1].face);
                     }
                     break;
                 case SPLIT:
@@ -464,6 +495,7 @@ void play_hands(Table *table)
                     // no default case
                     break;
             }
+            sleep(1);
         }
         
     }
@@ -501,7 +533,8 @@ void get_bets(Table *table)
             wmove(stdscr, LINES - 3, 0);
             wclrtobot(stdscr);
             refresh();
-            mvwaddstr(stdscr, LINES - 3, 0, "How much money do you wish to bet? ");
+            mvwaddstr(stdscr, LINES - 3, 0, table->players[player].name);
+            waddstr(stdscr, ", how much money do you wish to bet? ");
             wgetnstr(stdscr, input, 7);
             
             zinfo("Convert input to long.");
@@ -536,6 +569,10 @@ void get_bets(Table *table)
     }
     
     noecho();
+    wmove(stdscr, LINES - 3, 0);
+    clrtobot();
+    wrefresh(stdscr);
+    
     return;
 }
 
@@ -554,15 +591,17 @@ void get_bets(Table *table)
  */
 void play_dealer_hand(Dealer *dealer, Deck *shoe)
 {
+    // TODO add a pause using sleep()
     zinfo("Set dealer->faceup flag to TRUE.");
     dealer->faceup = TRUE;
     display_dealer(dealer);
     
-    while (blackjack_count(dealer->hand.hand) < 17)
+    while (blackjack_count(dealer->hand) < 17)
     {
         dealer->hand.hand[dealer->hand.numCards++] = deal_card(shoe);
-        zinfo("Dealer got dealt %s.", dealer->hand.hand[dealer->hand.numCards].face);
+        zinfo("Dealer got dealt %s.", dealer->hand.hand[dealer->hand.numCards - 1].face);
         display_dealer(dealer);
+        sleep(1);
     }
     
     zinfo("Dealer is at 17 or greater. Standing.");
@@ -614,7 +653,9 @@ void check_table(Table table, bool dealerBlackjack)
 {
     bool playerWon;
     uint8_t playerCount;
-    uint8_t dealerCount = blackjack_count(table.dealer->hand.hand);
+    zinfo("Get dealer count.");
+    uint8_t dealerCount = blackjack_count(table.dealer->hand);
+    zinfo("Dealer has %u. Checking players hands now.", dealerCount);
     
     for (uint8_t player = 0; player < table.numPlayers; player++)
     {
@@ -622,11 +663,14 @@ void check_table(Table table, bool dealerBlackjack)
         playerWon = FALSE;
         if (dealerBlackjack == FALSE)   // check players hand only if dealer doesn't have blackjack
         {
-            playerCount = blackjack_count(table.players[player].hand1.hand);
+            playerCount = blackjack_count(table.players[player].hand1);
+            zinfo("Dealer doesn't have blackjack. Player has %u.", playerCount);
             if (playerCount <= 21)      // make sure player hasn't gone over 21
             {
+                zinfo("Player hasn't busted. Comparing against dealer.");
                 if (dealerCount > 21 || playerCount >= dealerCount)
                 {
+                    zinfo("Player won. Setting flag to TRUE.");
                     playerWon = TRUE;   // player has won only if dealer busted or we have higher count
                                         // also TRUE if playerCount equals dealerCount which is a tie
                 }
@@ -638,13 +682,16 @@ void check_table(Table table, bool dealerBlackjack)
         {
             if  (playerCount == dealerCount)
             {
+                zinfo("Player tied with dealer.");
                 table.players[player].money += table.players[player].bet;
             }
             else
             {
+                zinfo("Player won. Get twice bet back: %u.", (2 * table.players[player].bet));
                 table.players[player].money += 2 * table.players[player].bet;
                 if (playerCount == 21 && table.players[player].hand1.numCards == 2) // it's blackjack
                 {
+                    zinfo("Player has blackjack. Get half bet added: %u.", (table.players[player].bet / 2));
                     table.players[player].money += table.players[player].bet / 2;
                 }
             }
@@ -653,6 +700,7 @@ void check_table(Table table, bool dealerBlackjack)
         // TODO: handle insurance bets here
         
         // reset bet amount here
+        zinfo("Reset players bet back to zero.");
         table.players[player].bet = 0;
     }
 

@@ -163,49 +163,57 @@ Card deal_card(Deck *shoe)
     return shoe->shoe[shoe->cards - shoe->left--];
 }
 
-uint8_t blackjack_count(Card *hand)
+uint8_t blackjack_count(Hand hand)
 {
+    zinfo("Initialize blackjack_count. Counting %u cards.", hand.numCards);
     bool softCount = false;
     bool hasAce = false;
     uint8_t card = 0;
     uint8_t count = 0;
-
-    while (strcmp(hand[card].rank, ""))
+    
+    for (card = 0; card < hand.numCards; card++)
     {
-        if (hand[card].value == 11)
+        zinfo("%u Card: %s Count before: %2u", card, hand.hand[card].face, count);
+        if (hand.hand[card].value == 11)
         {
+            zinfo("Detected Ace");
             if (!hasAce)
             {
+                zinfo("First Ace. hasAce & softCount true.");
                 hasAce = true;
                 softCount = true;
                 count += 11;
             }
             else
             {
+                zinfo("Second or more Ace. Adding 1.");
                 count += 1;
             }
         }
         else
         {
-            count += hand[card].value;
+            zinfo("Adding face value.");
+            count += hand.hand[card].value;
         }
 
         // check if we're over 21
-        if (count > 21)
+        if (count > 21) // TODO: add check for softCount here and remove if/else
         {
+            zinfo("We're over 21. Check softCount.");
             if (softCount)
             {
+                zinfo("softCount TRUE. Set to false and subtract 10.");
                 softCount = false;
                 count -= 10;
             }
-            else
-            {
-//                count = 0;  // TODO: uncomment if needed
-                break;      // player/dealer is over 21, no need to keep going so break out of loop
-            }
+//            else
+//            {
+////                count = 0;  // TODO: uncomment if needed
+//                break;      // player/dealer is over 21, no need to keep going so break out of loop
+//            }
         }
-
-        card++;
+        zinfo("%u Card: %s Count after : %2u", card, hand.hand[card].face, count);
     }
+    zinfo("Final count: %u", count);
     return count;
 }

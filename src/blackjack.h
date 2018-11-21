@@ -45,12 +45,6 @@
 /***********
  * DEFINES *
  ***********/
-typedef struct Hand
-{
-    Card hand[5];
-    uint8_t numCards;
-} Hand;
-
 typedef struct Player
 {
     char name[11];

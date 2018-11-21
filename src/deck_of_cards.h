@@ -70,6 +70,12 @@ typedef struct Deck
     uint16_t left;
 } Deck;
 
+typedef struct Hand
+{
+    Card hand[5];
+    uint8_t numCards;
+} Hand;
+
 /****************
  * DECLARATIONS *
  ****************/
@@ -77,6 +83,6 @@ Deck *init_deck(uint8_t decks);
 void shuffle_cards(Deck *shoe);
 void print_shoe(Deck *shoe);
 Card deal_card(Deck *shoe);
-uint8_t blackjack_count(Card *hand);
+uint8_t blackjack_count(Hand hand);
 
 #endif /* DECK_OF_CARDS_H_ */

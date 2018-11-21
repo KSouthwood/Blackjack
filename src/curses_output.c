@@ -146,8 +146,9 @@ void welcome_screen()
  */
 void display_dealer(Dealer *dealer)
 {
+    zinfo("Displaying dealer.");
     WINDOW *dealerWindow = newwin(PLAYER_WINDOW_LINE, PLAYER_WINDOW_COLS, 0, 0);    // TODO change to variable coordinates
-
+    wclear(dealerWindow);
     // build the strings to be displayed
     char *nameString = calloc(19, sizeof(char));
     char *handString = calloc(1, sizeof(dealer->hand.hand));
@@ -159,10 +160,17 @@ void display_dealer(Dealer *dealer)
     }
     snprintf(nameString, 19, "----- %s -----", dealer->name);
 
-    snprintf(handString, sizeof(dealer->hand.hand), "%s %s %s %s %s",
-            ((dealer->faceup) ? dealer->hand.hand[0].face : " XX"), dealer->hand.hand[1].face,
-            dealer->hand.hand[2].face, dealer->hand.hand[3].face, dealer->hand.hand[4].face);
-
+    if (dealer->hand.numCards > 0)
+    {
+        snprintf(handString, sizeof(dealer->hand.hand), "%s %s %s %s %s",
+                ((dealer->faceup) ? dealer->hand.hand[0].face : " XX"), dealer->hand.hand[1].face,
+                dealer->hand.hand[2].face, dealer->hand.hand[3].face, dealer->hand.hand[4].face);
+    }
+//    else
+//    {
+//        snprintf(handString, 1, "");
+//    }
+    
     box(dealerWindow, 0, 0);
     mvwaddstr(dealerWindow, 1, 1, nameString);
     mvwaddstr(dealerWindow, 2, 1, handString);
@@ -188,8 +196,8 @@ error:
  */
 void display_player(Player *player)
 {
+    zinfo("Displaying player %s.", player->name);
     WINDOW *playerWindow = newwin(PLAYER_WINDOW_LINE, PLAYER_WINDOW_COLS, 8, 0);    // TODO change to variable coordinates
-
     // build the strings to be displayed
     char *nameString = calloc(19, sizeof(char));
     char *hand1String = calloc(1, sizeof(player->hand1));
@@ -204,20 +212,35 @@ void display_player(Player *player)
     // Set up the strings
     snprintf(nameString, 19, "%-10s $%6u", player->name, player->money);
 
-    snprintf(hand1String, sizeof(player->hand1), "%s %s %s %s %s",
+    if (player->hand1.numCards > 0)
+    {
+        snprintf(hand1String, sizeof(player->hand1), "%s %s %s %s %s",
             player->hand1.hand[0].face, player->hand1.hand[1].face, player->hand1.hand[2].face,
             player->hand1.hand[3].face, player->hand1.hand[4].face);
-
-    snprintf(hand2String, sizeof(player->hand2), "%s %s %s %s %s",
-            player->hand2.hand[0].face, player->hand2.hand[1].face, player->hand2.hand[2].face,
-            player->hand2.hand[3].face, player->hand2.hand[4].face);
-
+    }
+//    else
+//    {
+//        snprintf(hand1String, 1, "");
+//    }
+    
+    if (player->hand2.numCards > 0)
+    {
+        snprintf(hand2String, sizeof(player->hand2), "%s %s %s %s %s",
+                player->hand2.hand[0].face, player->hand2.hand[1].face, player->hand2.hand[2].face,
+                player->hand2.hand[3].face, player->hand2.hand[4].face);
+    }
+//    else
+//    {
+//        snprintf(hand2String, 1, "");
+//    }
+    
     box(playerWindow, 0, 0);
     mvwaddstr(playerWindow, 1, 1, nameString);
     mvwaddstr(playerWindow, 2, 1, hand1String);
     mvwaddstr(playerWindow, 3, 1, hand2String);
-    wrefresh(playerWindow);
 
+    wrefresh(playerWindow);
+    wclear(playerWindow);
     delwin(playerWindow);
 
 error:
@@ -246,11 +269,13 @@ PlayerChoice get_player_choice(Player *player)
     char input;
     player->money += 0;
     
-    mvwaddstr(stdscr, 15, 0, "[S]tand, [H]it, [D]ouble down or S[p]lit? ");
+    mvwaddstr(stdscr, 15, 0, player->name);
+    waddstr(stdscr, " [S]tand, [H]it, [D]ouble down or S[p]lit? ");
     echo();
     
     while (!choiceMade)
     {
+        zinfo("Ask for players choice.");
         choiceMade = TRUE;
         input = wgetch(stdscr);
         switch(input)
@@ -258,18 +283,22 @@ PlayerChoice get_player_choice(Player *player)
             case 's':
             case 'S':
                 choice = STAND;
+                zinfo("Player chose STAND.");
                 break;
             case 'h':
             case 'H':
                 choice = HIT;
+                zinfo("Player chose HIT.");
                 break;
             case 'd':
             case 'D':
                 choice = DOUBLE;
+                zinfo("Player chose DOUBLE.");
                 break;
             case 'p':
             case 'P':
                 choice = SPLIT;
+                    zinfo("Plyaer chose SPLIT.");
                 break;
             default:
                 choiceMade = FALSE;
@@ -277,6 +306,9 @@ PlayerChoice get_player_choice(Player *player)
     }
     
     noecho();
+    wmove(stdscr, 15, 0);
+    wclrtoeol(stdscr);
+    wrefresh(stdscr);
     
     return choice;
 }
