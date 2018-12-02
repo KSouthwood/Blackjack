@@ -56,9 +56,9 @@ typedef struct Player
 
 typedef struct Dealer
 {
-    Hand hand;
     char name[7];
     bool faceup;    // TRUE to show card
+    Hand hand;
 } Dealer;
 
 typedef struct Table
@@ -67,6 +67,7 @@ typedef struct Table
     Player *players;
     Dealer *dealer;
     Deck *shoe;
+    WINDOW *msgWin;         // ncurses window to display messages in
 } Table;
 
 typedef enum PlayerChoice

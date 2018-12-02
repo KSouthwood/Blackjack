@@ -33,6 +33,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <unistd.h>
+#include <locale.h>
 
 #include "curses_output.h"
 #include "logger.h"
@@ -55,9 +56,10 @@ void deal_hands(Table *table);
 void check_dealer_hand(Dealer *dealer);
 void play_hands(Table *table);
 void get_bets(Table *table);
-void play_dealer_hand(Dealer *dealer, Deck *shoe);
-bool double_down(Player player);
+void play_dealer_hand(Dealer *dealer, Deck *shoe, WINDOW* msgWin);
+bool double_down(Player player, WINDOW* msgWin);
 void check_table(Table table, bool dealerBlackjack);
+void clear_hands(Hand hand);
 
 int main()
 {
@@ -67,6 +69,7 @@ int main()
 #else
     srand(time(NULL));
 #endif
+    setlocale(LC_ALL, "");
 
     if (init_zlog("blackjack.conf", "log")) return ERR;
 
@@ -77,7 +80,7 @@ int main()
 
     // create table struct
     Table *table = calloc(1, sizeof(Table));
-    zdebug("table pointer: %#X.", (uint32_t) table);
+    zdebug("table pointer: %p.", table);
     if (!table)
     {
         zerror("Couldn't allocate memory for Table struct!");
@@ -88,22 +91,24 @@ int main()
         {
             /***** No breaks or default on purpose *****/
             case NO_ERROR:
-                zinfo("Calling play game with table->numPlayers: %i, table->players: %#X, table->dealer: %#X.",
-                        table->numPlayers, (uint32_t) table->players, (uint32_t) table->dealer);
+                zinfo("Calling play game with table->numPlayers: %i, table->players: %p, table->dealer: %p.",
+                        table->numPlayers, table->players, table->dealer);
                 play_game(table);
-                zdebug("Freeing table->shoe->shoe: %#X.", (uint32_t) table->shoe->shoe);
+                zdebug("Freeing message window: %p.", table->msgWin);
+                delwin(table->msgWin);
+                zdebug("Freeing table->shoe->shoe: %p.", table->shoe->shoe);
                 free(table->shoe->shoe);
-                zdebug("Freeing table->shoe: %#X.", (uint32_t) table->shoe);
+                zdebug("Freeing table->shoe: %p.", table->shoe);
                 free(table->shoe);
             case DECK_ALLOC:
-                zlog_debug(zc, "Freeing table->dealer: %#X.", (uint32_t) table->dealer);
+                zlog_debug(zc, "Freeing table->dealer: %p.", table->dealer);
                 free(table->dealer);
             case DEALER_ALLOC:
-                zlog_debug(zc, "Freeing table->players: %#X.", (uint32_t) table->players);
+                zlog_debug(zc, "Freeing table->players: %p.", table->players);
                 free(table->players);
             case PLAYER_ALLOC:
             case PLAYER_QUIT:
-                zdebug("Freeing table: %#X.", (uint32_t) table);
+                zdebug("Freeing table: %p.", table);
                 free(table);
         }
     }
@@ -139,7 +144,7 @@ uint8_t setup_table(Table *table)
 
     // instantiate player(s)
     table->players = init_players(table->numPlayers);
-    zdebug("table->players pointer: %#X.", (uint32_t) table->players);
+    zdebug("table->players pointer: %p.", table->players);
     if (!table->players)
     {
         zerror("Couldn't allocate memory for players array.");
@@ -147,7 +152,7 @@ uint8_t setup_table(Table *table)
     }
     
     table->dealer = init_dealer();
-    zdebug("table->dealer pointer: %#X.", (uint32_t) table->dealer);
+    zdebug("table->dealer pointer: %p.", table->dealer);
     if (!table->dealer)
         {
             zerror("Couldn't allocate memory for dealer struct.");
@@ -157,13 +162,14 @@ uint8_t setup_table(Table *table)
     uint8_t decks = (table->numPlayers < 4) ? 4 : 6; // determine how many decks in the shoe
     zinfo("Instantiating %i decks for %i players.", decks, table->numPlayers);
     table->shoe = init_deck(decks);
-    zdebug("table->shoe pointer: %#X.", (uint32_t) table->shoe);
+    zdebug("table->shoe pointer: %p.", table->shoe);
     if(!table->shoe)
     {
         zerror("Couldn't allocate memory for deck of cards.");
         return DECK_ALLOC;
     }
-
+    
+    table->msgWin = init_message_window();
     return NO_ERROR;
 }
 
@@ -202,7 +208,7 @@ uint8_t get_num_players()
         // convert input to a number and make sure it's in our acceptable range
         if (atoi(&input))
         {
-            numOfPlayers = (atoi(&input) > 5) ? 0 : 1; // TODO change back to atoi(&input) when ready
+            numOfPlayers = (atoi(&input) > 5) ? 0 : 1; // TODO change 1 back to atoi(&input) when ready
         }
     }
 
@@ -235,7 +241,7 @@ Player *init_players(uint8_t numPlayers)
     }
     
     Player *players = calloc(numPlayers, sizeof(Player));
-    zdebug("players pointer: %#X.", (uint32_t) players);
+    zdebug("players pointer: %p.", players);
     if (players)
     {
         /***** Get player names *****/
@@ -248,8 +254,8 @@ Player *init_players(uint8_t numPlayers)
             wgetnstr(stdscr, players[ii].name, 10);
             players[ii].money = 1000;
             players[ii].bet = 0;
-            players[ii].hand1.numCards = 0;
-            players[ii].hand2.numCards = 0;
+            players[ii].hand1.cards = calloc(1, sizeof(CardList));
+            players[ii].hand2.cards = calloc(1, sizeof(CardList));
         }
         noecho();
         curs_set(CURS_INVIS);   // disable cursor
@@ -274,13 +280,14 @@ Player *init_players(uint8_t numPlayers)
 Dealer *init_dealer()
 {
     Dealer *dealer = calloc(1, sizeof(Dealer));
-    zdebug("Dealer pointer: %#X", (uint32_t) dealer);
+    zdebug("Dealer pointer: %p", dealer);
 
     if (dealer)
     {
         strncpy(dealer->name, "Dealer", 7);
         dealer->faceup = FALSE;
-        dealer->hand.numCards = 0;
+        dealer->hand.cards = calloc(1, sizeof(CardList));
+        dealer->hand.nextHand = NULL;
     }
 
     return dealer;
@@ -302,16 +309,27 @@ Dealer *init_dealer()
  */
 void play_game(Table *table)
 {
-    zinfo("play_game called with num_players: %i, players: %#X, dealer: %#X.",
-            table->numPlayers, (uint32_t) table->players, (uint32_t) table->dealer);
+    zinfo("play_game called with num_players: %i, players: %p, dealer: %p.",
+            table->numPlayers, table->players, table->dealer);
     zinfo("Shuffling shoe.");
     shuffle_cards(table->shoe);
+    print_message(table->msgWin, "Shuffling the shoe.");
 
     zdebug("Setting game_over flag and starting game loop.");
     bool game_over = FALSE;
-    uint8_t hands = 5;  // TODO: remove
+    uint8_t hands = 5;  // TODO: remove when ready to play fully
     while (!game_over)
     {
+        // Reset players & dealer number of cards to 0
+        for (uint8_t i = 0; i < table->numPlayers; i++)
+        {
+            zinfo("Clearing hands for %s", table->players[i].name);
+            clear_hands(table->players[i].hand1);
+            clear_hands(table->players[i].hand2);
+        }
+        clear_hands(table->dealer->hand);
+
+        // Display the windows for players & dealer
         zinfo("Display windows.");
         wclear(stdscr);
         wrefresh(stdscr);
@@ -320,6 +338,8 @@ void play_game(Table *table)
         {
             display_player(&table->players[i]);
         }
+        
+        
         zinfo("Get bets from players.");
         get_bets(table);
         zinfo("Calling deal_hands for initial deal.");
@@ -327,12 +347,11 @@ void play_game(Table *table)
         zinfo("Check dealer hand for blackjack.");
         check_dealer_hand(table->dealer); // TODO: make boolean function so we can skip player hands
         play_hands(table);
-        zinfo("Player %s has %u cards.", table->players[0].name, table->players[0].hand1.numCards);
-        play_dealer_hand(table->dealer, table->shoe);
+        play_dealer_hand(table->dealer, table->shoe, table->msgWin);
         zinfo("******************************");
         check_table(*table, FALSE);
         zinfo("******************************");
-        game_over = (--hands) ? FALSE : TRUE;
+        game_over = (--hands) ? FALSE : TRUE; // TODO: remove when ready to play fully
         if (game_over)
         {
             zdebug("Setting game_over to TRUE to escape loop.");
@@ -353,10 +372,7 @@ void play_game(Table *table)
  *      false.
  *
  *  Parameter(s):
- *  	shoe: deck_t struct containing the cards to be dealt
- *  	num_players: number of players at the table
- *  	players: array of player_t structs containing information about each player
- *  	dealer: dealer_t struct for the dealer
+ *  	table: Table struct containing everything
  *
  *	Returns:
  *		N/A
@@ -365,33 +381,23 @@ void deal_hands(Table *table)
 {
     // re-shuffle the deck if we're nearing the end
     // TODO Get rid of magic number. Switch to calculated random point or just use a #define
-    if ((table->shoe->cards - table->shoe->left) < (table->shoe->left * 0.8))
+    if ((table->shoe->cards - table->shoe->deal) < (table->shoe->cards * 0.2))
     {
+        zinfo("Re-shuffling deck.");
+        print_message(table->msgWin, "Re-shuffling the deck.");
         shuffle_cards(table->shoe);
     }
 
-    // Reset players & dealer number of cards to 0
-    for (uint8_t i = 0; i < table->numPlayers; i++)
-    {
-        table->players[i].hand1.numCards = 0;
-        table->players[i].hand2.numCards = 0;
-        memset(table->players[i].hand1.hand, '\0', sizeof(table->players[i].hand1.hand));
-        memset(table->players[i].hand2.hand, '\0', sizeof(table->players[i].hand2.hand));
-    }
-    table->dealer->hand.numCards = 0;
-    memset(table->dealer->hand.hand, '\0', sizeof(table->dealer->hand.hand));
+    print_message(table->msgWin, "Dealing cards.");
     
     // deal two cards to players and dealer
     for (uint8_t c = 0; c < 2; c++)
     {
         for (uint8_t i = 0; i < table->numPlayers; i++)
         {
-            table->players[i].hand1.hand[table->players->hand1.numCards++] = deal_card(table->shoe);
-            zinfo("Player %i got card: %s", i, table->players[i].hand1.hand[c].face);
+            deal_card(table->shoe, &table->players[i].hand1);
         }
-
-        table->dealer->hand.hand[table->dealer->hand.numCards++] = deal_card(table->shoe);
-        zinfo("Dealer got card: %s", table->dealer->hand.hand[c].face);
+        deal_card(table->shoe, &table->dealer->hand);
     }
 
     zinfo("Set dealer faceup flag to false. Returning.");
@@ -423,15 +429,23 @@ void deal_hands(Table *table)
  */
 void check_dealer_hand(Dealer *dealer)
 {
+    if (dealer->hand.cards == NULL)
+    {
+        zerror("No dealer cards to check!");
+        return;
+    }
+    
     // if our upcard is not a face card or Ace, no need to run the checks
-    if (dealer->hand.hand[1].value < 10)
+    if (dealer->hand.cards->nextCard->card->value < 10)
+//    if (dealer->hand.cards[1].value < 10)
     {
         zinfo("Upcard is not an Ace or face card. Exiting check.");
         return;
     }
     
     // check for Ace in dealer upcard and offer insurance if it is
-    if (!strcmp(dealer->hand.hand[1].rank, "A"))
+    if (!strcmp(dealer->hand.cards->nextCard->card->rank, " A"))
+//    if (!strcmp(dealer->hand.cards[1].rank, "A"))
     {
         zinfo("Dealer is showing an Ace.");
         //TODO offer players insurance
@@ -468,25 +482,28 @@ void play_hands(Table *table)
         bool playHand = TRUE;
         while (playHand)
         {
-            display_player(currentPlayer);
-            switch(get_player_choice(currentPlayer))
+            switch(get_player_choice(currentPlayer, table->msgWin))
             {
                 case STAND:
                     playHand = FALSE;
                     break;
                 case HIT:
                     // get a new card
-                    currentPlayer->hand1.hand[currentPlayer->hand1.numCards++] = deal_card(table->shoe);
-                    zinfo("Player %u got card %s.", player, currentPlayer->hand1.hand[currentPlayer->hand1.numCards - 1].face);
-                    if (blackjack_count(currentPlayer->hand1) > 21) playHand = FALSE;    // player busted
+                    deal_card(table->shoe, &currentPlayer->hand1);
+                    if (blackjack_count(currentPlayer->hand1) > 21)
+                    {
+                        print_message(table->msgWin, "You've busted!");
+                        playHand = FALSE;    // player busted
+                    }
+                    display_player(currentPlayer);
                     break;
                 case DOUBLE:
-                    if (double_down(*currentPlayer))
+                    if (double_down(*currentPlayer, table->msgWin))
                     {
-                        currentPlayer->hand1.hand[currentPlayer->hand1.numCards++] = deal_card(table->shoe);
+                        deal_card(table->shoe, &currentPlayer->hand1);
                         playHand = FALSE;
-                        zinfo("Player %u got card %s.", player, currentPlayer->hand1.hand[currentPlayer->hand1.numCards - 1].face);
                     }
+                    display_player(currentPlayer);
                     break;
                 case SPLIT:
                     // TODO: split cards into two hands
@@ -519,6 +536,7 @@ void get_bets(Table *table)
     zinfo("Set variables");
     char input[8];
     char *endptr = NULL;
+    char msg[80];
     long bet = 0;
     echo();
     
@@ -530,12 +548,9 @@ void get_bets(Table *table)
         while (!validBet)
         {
             zinfo("Print prompt and get input");
-            wmove(stdscr, LINES - 3, 0);
-            wclrtobot(stdscr);
-            refresh();
-            mvwaddstr(stdscr, LINES - 3, 0, table->players[player].name);
-            waddstr(stdscr, ", how much money do you wish to bet? ");
-            wgetnstr(stdscr, input, 7);
+            snprintf(msg, sizeof(msg), "%s, how much money do you wish to bet? ", table->players[player].name);
+            print_message(table->msgWin, msg);
+            wgetnstr(table->msgWin, input, 7);
             
             zinfo("Convert input to long.");
             errno = 0;
@@ -559,20 +574,14 @@ void get_bets(Table *table)
             else
             {
                 char output[80];
-                snprintf(output, 80, "Invalid amount bet. Must be between 0 and %7u.\nPress a key to try again.",
+                snprintf(output, 80, "Invalid amount bet. Must be between 0 and %u. Press a key to try again.",
                         table->players[player].money);
-                mvwaddstr(stdscr, LINES - 2, 0, output);
-                wrefresh(stdscr);
-                wgetch(stdscr);
+                print_message(table->msgWin, output);
             }
         }
     }
     
     noecho();
-    wmove(stdscr, LINES - 3, 0);
-    clrtobot();
-    wrefresh(stdscr);
-    
     return;
 }
 
@@ -589,7 +598,7 @@ void get_bets(Table *table)
  *  Returns:
  *      N/A
  */
-void play_dealer_hand(Dealer *dealer, Deck *shoe)
+void play_dealer_hand(Dealer *dealer, Deck *shoe, WINDOW* msgWin)
 {
     // TODO add a pause using sleep()
     zinfo("Set dealer->faceup flag to TRUE.");
@@ -598,12 +607,13 @@ void play_dealer_hand(Dealer *dealer, Deck *shoe)
     
     while (blackjack_count(dealer->hand) < 17)
     {
-        dealer->hand.hand[dealer->hand.numCards++] = deal_card(shoe);
-        zinfo("Dealer got dealt %s.", dealer->hand.hand[dealer->hand.numCards - 1].face);
+        print_message(msgWin, "Dealer hits.");
+        deal_card(shoe, &dealer->hand);
         display_dealer(dealer);
         sleep(1);
     }
     
+    print_message(msgWin, "Dealer stands.");
     zinfo("Dealer is at 17 or greater. Standing.");
     return;
 }
@@ -620,17 +630,18 @@ void play_dealer_hand(Dealer *dealer, Deck *shoe)
  *  Returns:
  *      bool:   TRUE if we could double down, FALSE if couldn't
  */
-bool double_down(Player player)
+bool double_down(Player player, WINDOW* msgWin)
 {
     // check we have enough money to double down
     if (player.bet > player.money)
     {
-        // todo: print error message here??
+        print_message(msgWin, "Not enough money to double down! Choose another option.");
         return FALSE;
     }
     
     player.money -= player.bet;
     player.bet *=2;
+    print_message(msgWin, "Doubling bet.");
     return TRUE;
 }
 
@@ -653,8 +664,11 @@ void check_table(Table table, bool dealerBlackjack)
 {
     bool playerWon;
     uint8_t playerCount;
+    char msg[80];
     zinfo("Get dealer count.");
     uint8_t dealerCount = blackjack_count(table.dealer->hand);
+    snprintf(msg, sizeof(msg), "Dealer has %u.", dealerCount);
+    print_message(table.msgWin, msg);
     zinfo("Dealer has %u. Checking players hands now.", dealerCount);
     
     for (uint8_t player = 0; player < table.numPlayers; player++)
@@ -664,6 +678,8 @@ void check_table(Table table, bool dealerBlackjack)
         if (dealerBlackjack == FALSE)   // check players hand only if dealer doesn't have blackjack
         {
             playerCount = blackjack_count(table.players[player].hand1);
+            snprintf(msg, sizeof(msg), "%s has %u.", table.players[player].name, playerCount);
+            print_message(table.msgWin, msg);
             zinfo("Dealer doesn't have blackjack. Player has %u.", playerCount);
             if (playerCount <= 21)      // make sure player hasn't gone over 21
             {
@@ -675,24 +691,42 @@ void check_table(Table table, bool dealerBlackjack)
                                         // also TRUE if playerCount equals dealerCount which is a tie
                 }
             }
+            else
+            {
+                snprintf(msg, sizeof(msg), "%s has busted.", table.players[player].name);
+                print_message(table.msgWin, msg);
+            }
         }
         
         // handle pay out or collection
         if (playerWon == TRUE)
         {
+            uint32_t moneyWon = 0;
             if  (playerCount == dealerCount)
             {
+                snprintf(msg, sizeof(msg), "%s tied with dealer. Get your bet of %u back.",
+                         table.players[player].name, table.players[player].bet);
+                print_message(table.msgWin, msg);
                 zinfo("Player tied with dealer.");
                 table.players[player].money += table.players[player].bet;
             }
             else
             {
-                zinfo("Player won. Get twice bet back: %u.", (2 * table.players[player].bet));
-                table.players[player].money += 2 * table.players[player].bet;
-                if (playerCount == 21 && table.players[player].hand1.numCards == 2) // it's blackjack
+                if (playerCount == 21 && (table.players[player].hand1.cards->nextCard->nextCard == NULL)) // it's blackjack
                 {
-                    zinfo("Player has blackjack. Get half bet added: %u.", (table.players[player].bet / 2));
-                    table.players[player].money += table.players[player].bet / 2;
+                    moneyWon = table.players[player].bet * 2.5;
+                    snprintf(msg, sizeof(msg), "%s has blackjack! You win %u.", table.players[player].name, moneyWon);
+                    print_message(table.msgWin, msg);
+                    zinfo("Player has blackjack. Get half bet added: %u.", moneyWon);
+                    table.players[player].money += moneyWon;
+                }
+                else
+                {
+                    moneyWon = table.players[player].bet * 2;
+                    snprintf(msg, sizeof(msg), "%s wins %u.", table.players[player].name, moneyWon);
+                    print_message(table.msgWin, msg);
+                    zinfo("Player won. Get twice bet back: %u.", moneyWon);
+                    table.players[player].money += moneyWon;
                 }
             }
         }
@@ -704,5 +738,36 @@ void check_table(Table table, bool dealerBlackjack)
         table.players[player].bet = 0;
     }
 
+    return;
+}
+
+/***************
+ *  Summary: Clear the hand of cards
+ *
+ *  Description: Clear the hand of cards, setting to NULL or freeing as needed.
+ *
+ *  Parameter(s):
+ *      hand: Hand struct of the hand to clear
+ *
+ *  Returns:
+ *      N/A
+ */
+void clear_hands(Hand hand)
+{
+    if (hand.cards != NULL)
+    {
+        CardList *currCard, *tempCard;
+        currCard = hand.cards->nextCard;
+        hand.cards->nextCard = NULL;
+        hand.cards->card = NULL;
+        
+        while (currCard != NULL)
+        {
+            tempCard = currCard->nextCard;
+            free(currCard);
+            currCard = tempCard;
+        }
+    }
+    
     return;
 }

@@ -77,7 +77,7 @@ void init_window()
  */
 void end_window()
 {
-    //TODO remove block when program is done or play_game loop is sufficently finished
+    //TODO remove block when program is done or play_game loop is sufficiently finished
     uint16_t columns, lines;
     getmaxyx(stdscr, lines, columns);
     mvwaddstr(stdscr, lines - 2, (columns - 35) / 2, "(Game over. Press any key to exit.)");
@@ -148,29 +148,37 @@ void display_dealer(Dealer *dealer)
 {
     zinfo("Displaying dealer.");
     WINDOW *dealerWindow = newwin(PLAYER_WINDOW_LINE, PLAYER_WINDOW_COLS, 0, 0);    // TODO change to variable coordinates
-    wclear(dealerWindow);
+
     // build the strings to be displayed
     char *nameString = calloc(19, sizeof(char));
-    char *handString = calloc(1, sizeof(dealer->hand.hand));
+    char *handString = calloc(1, 50); // TODO: Calculate???? instead of magic number
 
     if (!nameString || !handString)
     {
         zerror("Memory allocation for dealer name or hand string failed.");
         goto error;
     }
+    
     snprintf(nameString, 19, "----- %s -----", dealer->name);
 
-    if (dealer->hand.numCards > 0)
+    CardList *printCard = dealer->hand.cards;
+    if (printCard->card != NULL)
     {
-        snprintf(handString, sizeof(dealer->hand.hand), "%s %s %s %s %s",
-                ((dealer->faceup) ? dealer->hand.hand[0].face : " XX"), dealer->hand.hand[1].face,
-                dealer->hand.hand[2].face, dealer->hand.hand[3].face, dealer->hand.hand[4].face);
+//        hand_to_string(handString, dealer->faceup);
+        if (dealer->faceup == FALSE)
+        {
+            strncat(handString, "XXX ", 4);
+            printCard = printCard->nextCard;
+        }
+
+        while (printCard != NULL)
+        {
+            strncat(handString, printCard->card->face, 6);
+            strncat(handString, " ", 1);
+            printCard = printCard->nextCard;
+        }
     }
-//    else
-//    {
-//        snprintf(handString, 1, "");
-//    }
-    
+
     box(dealerWindow, 0, 0);
     mvwaddstr(dealerWindow, 1, 1, nameString);
     mvwaddstr(dealerWindow, 2, 1, handString);
@@ -200,8 +208,8 @@ void display_player(Player *player)
     WINDOW *playerWindow = newwin(PLAYER_WINDOW_LINE, PLAYER_WINDOW_COLS, 8, 0);    // TODO change to variable coordinates
     // build the strings to be displayed
     char *nameString = calloc(19, sizeof(char));
-    char *hand1String = calloc(1, sizeof(player->hand1));
-    char *hand2String = calloc(1, sizeof(player->hand2));
+    char *hand1String = calloc(1, 50);
+    char *hand2String = calloc(1, 50);
 
     if (!nameString || !hand1String || !hand2String)
     {
@@ -212,27 +220,27 @@ void display_player(Player *player)
     // Set up the strings
     snprintf(nameString, 19, "%-10s $%6u", player->name, player->money);
 
-    if (player->hand1.numCards > 0)
+    CardList *printCard1 = player->hand1.cards;
+    if (printCard1->card != NULL)
     {
-        snprintf(hand1String, sizeof(player->hand1), "%s %s %s %s %s",
-            player->hand1.hand[0].face, player->hand1.hand[1].face, player->hand1.hand[2].face,
-            player->hand1.hand[3].face, player->hand1.hand[4].face);
+        while (printCard1 != NULL)
+        {
+            strncat(hand1String, printCard1->card->face, 6);
+            strncat(hand1String, " ", 1);
+            printCard1 = printCard1->nextCard;
+        }
     }
-//    else
-//    {
-//        snprintf(hand1String, 1, "");
-//    }
     
-    if (player->hand2.numCards > 0)
+    CardList *printCard2 = player->hand2.cards;
+    if (printCard2->card != NULL)
     {
-        snprintf(hand2String, sizeof(player->hand2), "%s %s %s %s %s",
-                player->hand2.hand[0].face, player->hand2.hand[1].face, player->hand2.hand[2].face,
-                player->hand2.hand[3].face, player->hand2.hand[4].face);
+        while (printCard2 != NULL)
+        {
+            strncat(hand2String, printCard2->card->face, 6);
+            strncat(hand2String, " ", 1);
+            printCard2 = printCard2->nextCard;
+        }
     }
-//    else
-//    {
-//        snprintf(hand2String, 1, "");
-//    }
     
     box(playerWindow, 0, 0);
     mvwaddstr(playerWindow, 1, 1, nameString);
@@ -240,7 +248,6 @@ void display_player(Player *player)
     mvwaddstr(playerWindow, 3, 1, hand2String);
 
     wrefresh(playerWindow);
-    wclear(playerWindow);
     delwin(playerWindow);
 
 error:
@@ -262,15 +269,15 @@ error:
  *  Returns:
  *      N/A
  */
-PlayerChoice get_player_choice(Player *player)
+PlayerChoice get_player_choice(Player *player, WINDOW* msgWin)
 {
     bool choiceMade = FALSE;
     PlayerChoice choice;
     char input;
-    player->money += 0;
+    char msg[80];
     
-    mvwaddstr(stdscr, 15, 0, player->name);
-    waddstr(stdscr, " [S]tand, [H]it, [D]ouble down or S[p]lit? ");
+    snprintf(msg, sizeof(msg), "%s: [S]tand, [H]it, [D]ouble down or S[p]lit? ", player->name);
+    print_message(msgWin, msg);
     echo();
     
     while (!choiceMade)
@@ -283,22 +290,26 @@ PlayerChoice get_player_choice(Player *player)
             case 's':
             case 'S':
                 choice = STAND;
+                print_message(msgWin, "Stand\n");
                 zinfo("Player chose STAND.");
                 break;
             case 'h':
             case 'H':
                 choice = HIT;
+                print_message(msgWin, "Hit\n");
                 zinfo("Player chose HIT.");
                 break;
             case 'd':
             case 'D':
                 choice = DOUBLE;
+                print_message(msgWin, "Double down\n");
                 zinfo("Player chose DOUBLE.");
                 break;
             case 'p':
             case 'P':
                 choice = SPLIT;
-                    zinfo("Plyaer chose SPLIT.");
+                print_message(msgWin, "Split\n");
+                zinfo("Player chose SPLIT.");
                 break;
             default:
                 choiceMade = FALSE;
@@ -306,9 +317,72 @@ PlayerChoice get_player_choice(Player *player)
     }
     
     noecho();
-    wmove(stdscr, 15, 0);
-    wclrtoeol(stdscr);
-    wrefresh(stdscr);
-    
     return choice;
+}
+
+/***************
+ *  Summary: Instantiate the message window
+ *
+ *  Description: Create and return a WINDOW pointer to a curses window for use to print messages.
+ *
+ *  Parameter(s):
+ *      N/A
+ *
+ *  Returns:
+ *      N/A
+ */
+WINDOW *init_message_window()
+{
+    zinfo("init_message_window() called.");
+    uint16_t columns, lines;        // width and height of the stdscr window
+    getmaxyx(stdscr, lines, columns);
+    
+    // set up dimensions of our window
+    uint16_t msgY = lines - 12;
+    uint16_t msgX = 2;
+    uint16_t msgLines = 10;
+    uint16_t msgColumns = columns - 4;
+    
+    // create window to display messages in and window for the border
+    WINDOW *msgWindow = newwin(msgLines, msgColumns, msgY, msgX);
+    zinfo("msgWindow pointer: %p", msgWindow);
+    wmove(msgWindow, 9, 0);
+    
+    return msgWindow;
+}
+
+/***************
+ *  Summary: Display a message to the screen in a special window
+ *
+ *  Description: Display a message to the screen in a dedicated window with a border around it. The lines scroll from
+ *      the bottom to the top with the message passed in printed at the bottom.
+ *
+ *  Parameter(s):
+ *      msgWindow:  WINDOW pointer to the curses window the message gets printed to
+ *      msg:        pointer to a char string to be printed
+ *
+ *  Returns:
+ *      N/A
+ */
+void print_message(WINDOW *msgWindow, char *msg)
+{
+    uint16_t maxY, maxX, begY, begX;
+    getbegyx(msgWindow, begY, begX);
+    getmaxyx(msgWindow, maxY, maxX);
+    
+    // draw a border around the message window
+    WINDOW *boxwin = newwin(maxY + 4, maxX + 4, begY - 2, begX - 2);
+    box(boxwin, 0, 0);
+    wrefresh(boxwin);
+    delwin(boxwin);
+    
+    // delete the topmost line moving the other lines up and move the cursor to the bottom line
+    touchwin(msgWindow);
+    wmove(msgWindow, 0, 0);
+    wdeleteln(msgWindow);
+    wmove(msgWindow, 9, 0);
+    waddstr(msgWindow, msg);
+    wrefresh(msgWindow);
+
+    return;
 }

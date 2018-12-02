@@ -37,9 +37,9 @@
 #include <stdlib.h>
 #include <locale.h>
 
-#include "../src/blackjack.h"
-#include "../src/logger.h"
 #include "../src/curses_output.h"
+#include "../src/logger.h"
+#include "../src/blackjack.h"
 #include "../src/deck_of_cards.h"
 
 /***********
@@ -57,79 +57,79 @@ int main(void)
     setlocale(LC_ALL, "");
     srand(1968);
     
-    uint16_t lines, columns;
-    
     if (init_zlog("test_curses.conf", "log")) printf(":p\n");
-
-    char *msg1 = "stdscr has been initialized. Press a key to continue.";
-    char *msg2 = "Testing welcome screen.";
-    char *msg3 = "Testing dealer with one card down. Press a key to continue.";
-    char *msg4 = "Testing dealer with both cards up. Press a key to continue.";
-    char *msg5 = "Player box tested. Press a key to continue.";
     
-    zinfo("Create and shuffle deck.");
-//    Table *table = calloc(1, sizeof(Table));
-    Table table;
-    table.shoe = init_deck(1);
-    shuffle_cards(table.shoe);
+    char *msg1 = "stdscr has been initialized. Press a key to continue.\n";
+    char *msg2 = "Testing welcome screen.\n";
+    char *msg3 = "Testing dealer with one card down. Press a key to continue.\n";
+    char *msg4 = "Testing dealer with both cards up. Press a key to continue.\n";
+    char *msg5 = "Player box tested. Press a key to continue.\n";
     
     // Initialize the curses system
     zinfo("Initialize the curses system.");
     init_window();
-    getmaxyx(stdscr, lines, columns);
-    mvwaddstr(stdscr, 1, CENTER(msg1), msg1);
+    WINDOW *messageWindow = init_message_window();
     zinfo("Initialized curses system.");
+    print_message(messageWindow, msg1);
     wgetch(stdscr);
+
+    zinfo("Create and shuffle deck.");
+    print_message(messageWindow, "Creating and shuffling deck.\n");
+    Table table;
+    table.shoe = init_deck(1);
+    shuffle_cards(table.shoe);
+    
     
     // Print the welcome screen
     zinfo("Show the welcome screen.");
-    mvwaddstr(stdscr, 2, CENTER(msg2), msg2);
+    print_message(messageWindow, msg2);
     welcome_screen();
     zinfo("Welcome screen shown.");
     
     // Test the dealer window
     zinfo("Setting up dealer.");
     table.dealer = calloc(1, sizeof(Dealer));
-//    table.dealer->name = "Dealer";
     strncpy(table.dealer->name, "Dealer", 7);
     table.dealer->faceup = FALSE;
-    table.dealer->hand.hand[table.dealer->hand.numCards++] = deal_card(table.shoe);
-    table.dealer->hand.hand[table.dealer->hand.numCards++] = deal_card(table.shoe);
+    table.dealer->hand.nextHand = NULL;
+    table.dealer->hand.cards = calloc(1, sizeof(CardList));
+    deal_card(table.shoe, &table.dealer->hand);
+    deal_card(table.shoe, &table.dealer->hand);
     
     zinfo("Calling dealer window with hole card down.");
     display_dealer(table.dealer);
-    mvwaddstr(stdscr, lines - 5, CENTER(msg3), msg3);
+    print_message(messageWindow, msg3);
     wgetch(stdscr);
     
     zinfo("Calling dealer window with both cards up.");
     table.dealer->faceup = TRUE;
     display_dealer(table.dealer);
-    mvwaddstr(stdscr, lines - 4, CENTER(msg4), msg4);
+    print_message(messageWindow, msg4);
     wgetch(stdscr);
     
     zinfo("Setting up player.");
     table.players = calloc(1, sizeof(Player));
     strncpy(table.players[0].name, "Charlotte", 10);
     table.players[0].money = 99999;
-    table.players[0].hand1.hand[table.players[0].hand1.numCards++] = deal_card(table.shoe);
-    table.players[0].hand1.hand[table.players[0].hand1.numCards++] = deal_card(table.shoe);
-    table.players[0].hand2.hand[table.players[0].hand2.numCards++] = deal_card(table.shoe);
-    table.players[0].hand2.hand[table.players[0].hand2.numCards++] = deal_card(table.shoe);
+    table.players[0].hand1.cards = calloc(1, sizeof(CardList));
+    table.players[0].hand2.cards = calloc(1, sizeof(CardList));
+    deal_card(table.shoe, &table.players[0].hand1);
+    deal_card(table.shoe, &table.players[0].hand1);
     
-    zinfo("Calline player window.");
+    zinfo("Calling player window.");
     display_player(&table.players[0]);
-    mvwaddstr(stdscr, lines - 3, CENTER(msg5), msg5);
+    print_message(messageWindow, msg5);
     wgetch(stdscr);
     
     zinfo("Freeing memory allocations.");
+    delwin(messageWindow);
     free(table.players);
     free(table.dealer);
     free(table.shoe->shoe);
     free(table.shoe);
-//    free(table);
     
     zinfo("Terminating curses mode.");
-    end_window();
+    end_window(table.msgWin);
     end_zlog();
     return 0;
 }

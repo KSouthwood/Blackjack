@@ -35,6 +35,8 @@
 #ifndef CURSES_OUTPUT_H_
 #define CURSES_OUTPUT_H_
 
+#define NCURSES_WIDECHAR 1
+
 /************
  * INCLUDES *
  ************/
@@ -61,6 +63,8 @@ void end_window();
 void welcome_screen();
 void display_dealer(Dealer *dealer);
 void display_player(Player *player);
-PlayerChoice get_player_choice(Player *player);
+PlayerChoice get_player_choice(Player *player, WINDOW *msgWin);
+WINDOW *init_message_window();
+void print_message(WINDOW *msgWindow, char *msg);
 
 #endif /* CURSES_OUTPUT_H_ */

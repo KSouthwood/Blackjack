@@ -38,6 +38,10 @@
  ************/
 #include "deck_of_cards.h"
 
+/***********
+ * DEFINES *
+ ***********/
+
 /****************
  * DECLARATIONS *
  ****************/
@@ -45,47 +49,46 @@
 /***************
  *  Summary: Instantiate one or more decks of cards
  *
- *  Description: Populates a deck_t struct of cards with the ranks and suits in order. Initial
+ *  Description: Populates a Deck struct of cards with the ranks and suits in order. Initial
  *               set-up for a card game before being shuffled. Also sets the number of cards and
- *               cards left to initial values to be used elsewhere as needed.
+ *               card to be dealt to initial values to be used elsewhere as needed.
  *
  *  Parameter(s):
  *      decks: the number of decks included in the shoe
  *
  *  Returns:
- *      deck: pointer to the deck_t struct or NULL if an error
+ *      deck: pointer to the Deck struct or NULL if an error
  */
 Deck *init_deck(uint8_t decks)
 {
-    uint16_t cards = CARDS_IN_DECK * decks;
-
+    uint16_t cards = decks * CARDS_IN_DECK;
+    
     // allocate memory
     Deck *deck = calloc(1, sizeof(Deck));
     deck->shoe = calloc(cards, sizeof(Card));
-    if (!deck->shoe || !deck)
+    if (deck == NULL || deck->shoe == NULL)
     {
-        zlog_error(zc, "Memory allocation for shoe or deck failed.");
-        goto error;
+        zerror("Deck memory allocation failed.");
+        return NULL;
     }
-
-    char *ranks[13] = {"A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"};
-    char *suits[4] = {SPADE, CLUB, HEART, DIAMOND};
+    
+    char *ranks[13] = {" A", " 2", " 3", " 4", " 5", " 6", " 7", " 8", " 9", "10", " J", " Q", " K"};
+    char *suits[4] =  {SPADE, CLUB, HEART, DIAMOND};
     uint8_t values[13] = {11, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10};
-
+    
     for (uint16_t card = 0; card < cards; card++)
     {
-        uint8_t cc = card % CARDS_IN_DECK;
-        strcpy(deck->shoe[card].rank, ranks[cc % 13]);
-        strcpy(deck->shoe[card].suit, suits[cc / 13]);
-        strcpy(deck->shoe[card].face, deck->shoe[card].rank);
-        strcat(deck->shoe[card].face, deck->shoe[card].suit);
+        uint16_t cc = card % CARDS_IN_DECK;
+        strncpy(deck->shoe[card].rank, ranks[cc % 13], 3);
+        strncpy(deck->shoe[card].suit, suits[cc / 13], 4);
+        strncpy(deck->shoe[card].face, ranks[cc % 13], 3);
+        strncat(deck->shoe[card].face, suits[cc / 13], 4);
         deck->shoe[card].value = values[cc % 13];
     }
-
+    
     deck->cards = cards;
-    deck->left = cards;
-
-error:
+    deck->deal = 0;
+    
     return deck;
 }
 
@@ -115,33 +118,7 @@ void shuffle_cards(Deck *shoe)
         shoe->shoe[card] = shoe_tmp;
     }
 
-    shoe->left = shoe->cards; // Re-set the cards left to the number of cards in the shoe
-
-    return;
-}
-
-/***************
- *  Summary: Prints a shoe of cards in order.
- *
- *  Description: Prints a shoe of cards starting with the first card through the last card.
- *
- *  Parameter(s):
- *      shoe: the shoe of cards to print
- *      cards: the number of cards in the shoe
- *
- *  Returns:
- *      N/A
- */
-void print_shoe(Deck *shoe)
-{
-    printf("Printing deck of cards:\n");
-
-    for (uint16_t card = 0; card < shoe->cards; card++)
-    {
-        printf("%5s", shoe->shoe[card].face);
-        printf("%s", ((card + 1) % 13) == 0 ? "\n" : ", ");
-    }
-    printf("\n");
+    shoe->deal = 0; // Set the card to be dealt to the first card
 
     return;
 }
@@ -149,71 +126,98 @@ void print_shoe(Deck *shoe)
 /***************
  *  Summary: Deal a card from the shoe
  *
- *  Description: Using the supplied shoe struct, return the topmost card in the shoe. Update the
- *      counter in the struct as well.
+ *  Description: Using the supplied shoe Deck struct, add the next card to be dealt onto the end of the hand Hand struct
+ *      linked list. Also increments the shoe.deal counter.
  *
  *  Parameter(s):
- *      shoe: a deck_t struct
- *
+ *      shoe: a Deck struct
+ *      hand: a Hand struct
  *  Returns:
- *      card: a card_t struct to be added to the hand of the caller
+ *      N/A
  */
-Card deal_card(Deck *shoe)
+void deal_card(Deck *shoe, Hand *hand)
 {
-    return shoe->shoe[shoe->cards - shoe->left--];
+    zinfo("Card dealt is: %s", shoe->shoe[shoe->deal].face);
+    // check if the hand has no other cards yet and add the card to the root node if so
+    if (hand->cards->card == NULL)
+    {
+        hand->cards->card = &shoe->shoe[shoe->deal++];
+        return;
+    }
+    
+    CardList *currCard = hand->cards;
+    
+    // move to the end of the linked list of cards
+    while (currCard->nextCard != NULL)
+    {
+        currCard = currCard->nextCard;
+    }
+    
+    // allocate new node and update pointers to add card to end of the list
+    CardList *newCard = calloc(1, sizeof(CardList));
+    newCard->card = &shoe->shoe[shoe->deal++];
+    newCard->nextCard = NULL;
+    currCard->nextCard = newCard;
+    return;
 }
 
+/***************
+ *  Summary: Return the total of the cards in a hand
+ *
+ *  Description: Adds up the total value of the cards in a supplied Hand struct accounting for variability of
+ *      the value of Aces
+ *
+ *  Parameter(s):
+ *      hand - Hand struct of cards to be counted
+ *
+ *  Returns:
+ *      N/A
+ */
 uint8_t blackjack_count(Hand hand)
 {
-    zinfo("Initialize blackjack_count. Counting %u cards.", hand.numCards);
+    zdebug("Initialize blackjack_count...");
     bool softCount = false;
     bool hasAce = false;
-    uint8_t card = 0;
     uint8_t count = 0;
-    
-    for (card = 0; card < hand.numCards; card++)
+    CardList *countCard = hand.cards;
+    if (hand.cards->card != NULL)
     {
-        zinfo("%u Card: %s Count before: %2u", card, hand.hand[card].face, count);
-        if (hand.hand[card].value == 11)
+        while (countCard != NULL)
         {
-            zinfo("Detected Ace");
-            if (!hasAce)
+            zdebug("Card: %s, Count before: %2u.", countCard->card->face, count);
+            if (countCard->card->value == 11)
             {
-                zinfo("First Ace. hasAce & softCount true.");
-                hasAce = true;
-                softCount = true;
-                count += 11;
+                zdebug("Ace found.");
+                if(!hasAce)
+                {
+                    zdebug("First Ace in hand, setting hasAce and softCount to true.");
+                    hasAce = true;
+                    softCount = true;
+                    count += 11;
+                }
+                else
+                {
+                    zdebug("Second or more Ace, adding 1.");
+                    count += 1;
+                }
             }
             else
             {
-                zinfo("Second or more Ace. Adding 1.");
-                count += 1;
+                zdebug("Adding face value.");
+                count += countCard->card->value;
             }
-        }
-        else
-        {
-            zinfo("Adding face value.");
-            count += hand.hand[card].value;
-        }
 
-        // check if we're over 21
-        if (count > 21) // TODO: add check for softCount here and remove if/else
-        {
-            zinfo("We're over 21. Check softCount.");
-            if (softCount)
+            // check if we're over 21 with softCount true
+            if ((count > 21) && softCount)
             {
-                zinfo("softCount TRUE. Set to false and subtract 10.");
+                zdebug("softCount is true, set to false and subtract 10 from count.");
                 softCount = false;
                 count -= 10;
             }
-//            else
-//            {
-////                count = 0;  // TODO: uncomment if needed
-//                break;      // player/dealer is over 21, no need to keep going so break out of loop
-//            }
+
+            countCard = countCard->nextCard;
         }
-        zinfo("%u Card: %s Count after : %2u", card, hand.hand[card].face, count);
     }
-    zinfo("Final count: %u", count);
+    zdebug("Final count: %u", count);
     return count;
 }

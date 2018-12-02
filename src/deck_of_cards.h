@@ -59,7 +59,7 @@ typedef struct Card
 {
     char rank[3];
     char suit[4];
-    char face[7];
+    char face[6];
     uint8_t value;
 } Card;
 
@@ -67,13 +67,19 @@ typedef struct Deck
 {
     Card *shoe;
     uint16_t cards;
-    uint16_t left;
+    uint16_t deal;
 } Deck;
+
+typedef struct CardList
+{
+    Card *card;
+    struct CardList *nextCard;
+} CardList;
 
 typedef struct Hand
 {
-    Card hand[5];
-    uint8_t numCards;
+    CardList *cards;
+    struct Hand *nextHand;
 } Hand;
 
 /****************
@@ -81,8 +87,7 @@ typedef struct Hand
  ****************/
 Deck *init_deck(uint8_t decks);
 void shuffle_cards(Deck *shoe);
-void print_shoe(Deck *shoe);
-Card deal_card(Deck *shoe);
+void deal_card(Deck *shoe, Hand *hand);
 uint8_t blackjack_count(Hand hand);
 
 #endif /* DECK_OF_CARDS_H_ */

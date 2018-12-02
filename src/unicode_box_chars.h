@@ -56,13 +56,19 @@
 #define SING_LOWR_L L'\u2518'
 #define SING_LOWR_H L'\u251B'
 
-#define DOUB_HORZ L'\u2550'
-#define DOUB_VERT L'\u2551'
-#define DOUB_UPPL L'\u2554'
-#define DOUB_UPPR L'\u2557'
-#define DOUB_LOWL L'\u255A'
-#define DOUB_LOWR L'\u255D'
+//#define DOUB_HORZ L'\u2550'
+//#define DOUB_VERT L'\u2551'
+//#define DOUB_UPPL L'\u2554'
+//#define DOUB_UPPR L'\u2557'
+//#define DOUB_LOWL L'\u255A'
+//#define DOUB_LOWR L'\u255D'
 
+#define DOUB_HORZ "\u2550"
+#define DOUB_VERT "\u2551"
+#define DOUB_UPPL "\u2554"
+#define DOUB_UPPR "\u2557"
+#define DOUB_LOWL "\u255A"
+#define DOUB_LOWR "\u255D"
 
 /****************
  * DECLARATIONS *
