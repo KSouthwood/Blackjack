@@ -111,7 +111,7 @@ void shuffle_cards(Deck *shoe)
 
     for (int card = shoe->cards - 1; card > 0; card--)
     {
-        swap = rand() % card;
+        swap = random() % card;
 
         shoe_tmp = shoe->shoe[swap];
         shoe->shoe[swap] = shoe->shoe[card];

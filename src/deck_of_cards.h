@@ -34,6 +34,10 @@
 #ifndef DECK_OF_CARDS_H_
 #define DECK_OF_CARDS_H_
 
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 700
+#endif
+
 /************
  * INCLUDES *
  ************/

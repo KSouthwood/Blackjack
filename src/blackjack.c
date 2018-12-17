@@ -25,6 +25,8 @@
 /************
  * INCLUDES *
  ************/
+#include "blackjack.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -37,12 +39,11 @@
 
 #include "curses_output.h"
 #include "logger.h"
-#include "blackjack.h"
 
 /***********
  * DEFINES *
  ***********/
-enum errorCode {NO_ERROR, PLAYER_ALLOC, DEALER_ALLOC, DECK_ALLOC, PLAYER_QUIT};
+enum errorCode {NO_ERROR, ERR_PLAYER_ALLOC, ERR_DEALER_ALLOC, ERR_DECK_ALLOC, PLAYER_QUIT};
 
 /****************
  * DECLARATIONS *
@@ -53,21 +54,21 @@ Player *init_players(uint8_t num_players);
 Dealer *init_dealer();
 void play_game(Table *table);
 void deal_hands(Table *table);
-void check_dealer_hand(Dealer *dealer);
+bool check_dealer_hand(Table *table);
 void play_hands(Table *table);
-void get_bets(Table *table);
+bool get_bets(Table *table);
 void play_dealer_hand(Dealer *dealer, Deck *shoe, WINDOW* msgWin);
-bool double_down(Player player, WINDOW* msgWin);
-void check_table(Table table, bool dealerBlackjack);
+bool double_down(Player *player, WINDOW* msgWin);
+bool check_table(Table table, bool dealerBlackjack);
 void clear_hands(Hand hand);
 
 int main()
 {
     // seed random number generator
 #if DEBUG
-    srand(1968);
+    srandom(1968);
 #else
-    srand(time(NULL));
+    srandom(time(NULL));
 #endif
     setlocale(LC_ALL, "");
 
@@ -100,13 +101,13 @@ int main()
                 free(table->shoe->shoe);
                 zdebug("Freeing table->shoe: %p.", table->shoe);
                 free(table->shoe);
-            case DECK_ALLOC:
+            case ERR_DECK_ALLOC:
                 zlog_debug(zc, "Freeing table->dealer: %p.", table->dealer);
                 free(table->dealer);
-            case DEALER_ALLOC:
+            case ERR_DEALER_ALLOC:
                 zlog_debug(zc, "Freeing table->players: %p.", table->players);
                 free(table->players);
-            case PLAYER_ALLOC:
+            case ERR_PLAYER_ALLOC:
             case PLAYER_QUIT:
                 zdebug("Freeing table: %p.", table);
                 free(table);
@@ -148,7 +149,7 @@ uint8_t setup_table(Table *table)
     if (!table->players)
     {
         zerror("Couldn't allocate memory for players array.");
-        return PLAYER_ALLOC;
+        return ERR_PLAYER_ALLOC;
     }
     
     table->dealer = init_dealer();
@@ -156,17 +157,17 @@ uint8_t setup_table(Table *table)
     if (!table->dealer)
         {
             zerror("Couldn't allocate memory for dealer struct.");
-            return DEALER_ALLOC;
+            return ERR_DEALER_ALLOC;
         }
 
-    uint8_t decks = (table->numPlayers < 4) ? 4 : 6; // determine how many decks in the shoe
+    uint8_t decks = (table->numPlayers < 4) ? 1 : 1; // determine how many decks in the shoe; TODO: Change to 4 : 6
     zinfo("Instantiating %i decks for %i players.", decks, table->numPlayers);
     table->shoe = init_deck(decks);
     zdebug("table->shoe pointer: %p.", table->shoe);
     if(!table->shoe)
     {
         zerror("Couldn't allocate memory for deck of cards.");
-        return DECK_ALLOC;
+        return ERR_DECK_ALLOC;
     }
     
     table->msgWin = init_message_window();
@@ -316,9 +317,8 @@ void play_game(Table *table)
     print_message(table->msgWin, "Shuffling the shoe.");
 
     zdebug("Setting game_over flag and starting game loop.");
-    bool game_over = FALSE;
-    uint8_t hands = 5;  // TODO: remove when ready to play fully
-    while (!game_over)
+    bool gameOver = FALSE;
+    while (!gameOver)
     {
         // Reset players & dealer number of cards to 0
         for (uint8_t i = 0; i < table->numPlayers; i++)
@@ -341,25 +341,18 @@ void play_game(Table *table)
         
         
         zinfo("Get bets from players.");
-        get_bets(table);
+        if ((gameOver = get_bets(table))) continue;
         zinfo("Calling deal_hands for initial deal.");
         deal_hands(table);
         zinfo("Check dealer hand for blackjack.");
-        check_dealer_hand(table->dealer); // TODO: make boolean function so we can skip player hands
-        play_hands(table);
-        play_dealer_hand(table->dealer, table->shoe, table->msgWin);
-        zinfo("******************************");
-        check_table(*table, FALSE);
-        zinfo("******************************");
-        game_over = (--hands) ? FALSE : TRUE; // TODO: remove when ready to play fully
-        if (game_over)
+        if (check_dealer_hand(table) == FALSE)  // if dealer has blackjack we skip the players turns
         {
-            zdebug("Setting game_over to TRUE to escape loop.");
+            play_hands(table);
+            play_dealer_hand(table->dealer, table->shoe, table->msgWin);
         }
-        else
-        {
-            zdebug("Playing %u more hands.", hands);
-        }
+        zinfo("******************************");
+        gameOver = check_table(*table, FALSE);
+        zinfo("******************************");
     }
 
     return;
@@ -425,40 +418,43 @@ void deal_hands(Table *table)
  *      dealer: pointer to Dealer struct
  *
  *	Returns:
- *		N/A
+ *		bool: TRUE if the dealer has blackjack, FALSE otherwise
  */
-void check_dealer_hand(Dealer *dealer)
+bool check_dealer_hand(Table *table)
 {
-    if (dealer->hand.cards == NULL)
+    Dealer dealer = *table->dealer;
+//    WINDOW msgWin = *table->msgWin;
+    
+    if (dealer.hand.cards == NULL)
     {
         zerror("No dealer cards to check!");
-        return;
+        return FALSE;
     }
     
     // if our upcard is not a face card or Ace, no need to run the checks
-    if (dealer->hand.cards->nextCard->card->value < 10)
-//    if (dealer->hand.cards[1].value < 10)
+    if (dealer.hand.cards->nextCard->card->value < 10)
     {
         zinfo("Upcard is not an Ace or face card. Exiting check.");
-        return;
+        return FALSE;
     }
     
     // check for Ace in dealer upcard and offer insurance if it is
-    if (!strcmp(dealer->hand.cards->nextCard->card->rank, " A"))
-//    if (!strcmp(dealer->hand.cards[1].rank, "A"))
+    if (!strcmp(dealer.hand.cards->nextCard->card->rank, " A"))
     {
         zinfo("Dealer is showing an Ace.");
+        print_message(table->msgWin, "Dealer is showing an Ace. Offering insurance bets.");
         //TODO offer players insurance
     }
 
     // No Ace or we've offered insurance, now check if we have blackjack
-    if (blackjack_count(dealer->hand) == 21)
+    if (blackjack_count(dealer.hand) == 21)
     {
         zinfo("Dealer has blackjack. Players lose.");
-        //TODO: Take all players money - dealer blackjack
+        print_message(table->msgWin, "Dealer has blackjack! Everybody loses.");
+        return TRUE;
     }
 
-    return;
+    return FALSE;
 }
 
 /***************
@@ -475,6 +471,8 @@ void check_dealer_hand(Dealer *dealer)
  */
 void play_hands(Table *table)
 {
+    struct timespec sleep = {.tv_nsec = 500000000, .tv_sec = 0};
+    struct timespec remain;
     for (uint8_t player = 0; player < table->numPlayers; player++)
     {
         Player *currentPlayer = &table->players[player];
@@ -498,7 +496,7 @@ void play_hands(Table *table)
                     display_player(currentPlayer);
                     break;
                 case DOUBLE:
-                    if (double_down(*currentPlayer, table->msgWin))
+                    if (double_down(currentPlayer, table->msgWin))
                     {
                         deal_card(table->shoe, &currentPlayer->hand1);
                         playHand = FALSE;
@@ -512,7 +510,7 @@ void play_hands(Table *table)
                     // no default case
                     break;
             }
-            sleep(1);
+            nanosleep(&sleep, &remain);
         }
         
     }
@@ -531,7 +529,7 @@ void play_hands(Table *table)
  *  Returns:
  *      dealer: a pointer to dealer struct or NULL if an error occurred
  */
-void get_bets(Table *table)
+bool get_bets(Table *table)
 {
     zinfo("Set variables");
     char input[8];
@@ -548,10 +546,17 @@ void get_bets(Table *table)
         while (!validBet)
         {
             zinfo("Print prompt and get input");
-            snprintf(msg, sizeof(msg), "%s, how much money do you wish to bet? ", table->players[player].name);
+            snprintf(msg, sizeof(msg), "%s, how much money do you wish to bet? ('q' to quit.) ", table->players[player].name);
             print_message(table->msgWin, msg);
             wgetnstr(table->msgWin, input, 7);
             
+            // check if player wants to quit
+            if (tolower(input[0]) == 'q')
+            {
+                table->numPlayers--;
+                validBet = TRUE;
+                continue;
+            }
             zinfo("Convert input to long.");
             errno = 0;
             bet = strtol(input, &endptr, 10);
@@ -582,7 +587,7 @@ void get_bets(Table *table)
     }
     
     noecho();
-    return;
+    return (table->numPlayers == 0);
 }
 
 /***************
@@ -600,17 +605,18 @@ void get_bets(Table *table)
  */
 void play_dealer_hand(Dealer *dealer, Deck *shoe, WINDOW* msgWin)
 {
-    // TODO add a pause using sleep()
     zinfo("Set dealer->faceup flag to TRUE.");
     dealer->faceup = TRUE;
     display_dealer(dealer);
+    struct timespec sleep = {.tv_nsec = 500000000, .tv_sec = 0};
+    struct timespec remain;
     
     while (blackjack_count(dealer->hand) < 17)
     {
         print_message(msgWin, "Dealer hits.");
         deal_card(shoe, &dealer->hand);
         display_dealer(dealer);
-        sleep(1);
+        nanosleep(&sleep, &remain);
     }
     
     print_message(msgWin, "Dealer stands.");
@@ -630,17 +636,17 @@ void play_dealer_hand(Dealer *dealer, Deck *shoe, WINDOW* msgWin)
  *  Returns:
  *      bool:   TRUE if we could double down, FALSE if couldn't
  */
-bool double_down(Player player, WINDOW* msgWin)
+bool double_down(Player *player, WINDOW* msgWin)
 {
     // check we have enough money to double down
-    if (player.bet > player.money)
+    if (player->bet > player->money)
     {
         print_message(msgWin, "Not enough money to double down! Choose another option.");
         return FALSE;
     }
     
-    player.money -= player.bet;
-    player.bet *=2;
+    player->money -= player->bet;
+    player->bet *=2;
     print_message(msgWin, "Doubling bet.");
     return TRUE;
 }
@@ -660,7 +666,7 @@ bool double_down(Player player, WINDOW* msgWin)
  *  Returns:
  *      N/A
  */
-void check_table(Table table, bool dealerBlackjack)
+bool check_table(Table table, bool dealerBlackjack)
 {
     bool playerWon;
     uint8_t playerCount;
@@ -736,9 +742,14 @@ void check_table(Table table, bool dealerBlackjack)
         // reset bet amount here
         zinfo("Reset players bet back to zero.");
         table.players[player].bet = 0;
+        
+        if (table.players[player].money == 0)
+        {
+            table.numPlayers--;
+        }
     }
 
-    return;
+    return (table.numPlayers == 0);
 }
 
 /***************
@@ -769,5 +780,22 @@ void clear_hands(Hand hand)
         }
     }
     
+    return;
+}
+
+/***************
+ *  Summary: Offer insurance bets to the players
+ *
+ *  Description: Ask each player in turn if they'd like the insurance bet when the dealer is showing an Ace for an
+ *      upcard. Deducts the bet from each player if they have enough money otherwise we move on.
+ *
+ *  Parameter(s):
+ *      N/A
+ *
+ *  Returns:
+ *      N/A
+ */
+void offer_insurance()
+{
     return;
 }

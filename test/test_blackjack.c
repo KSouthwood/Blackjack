@@ -34,14 +34,14 @@
 /************
  * INCLUDES *
  ************/
+#include "../src/blackjack.h"
+
 #include <stdio.h>
 #include <locale.h>
 #include <stdlib.h>
-#include <ncurses.h>
 
 #include "../src/logger.h"
 #include "../src/deck_of_cards.h"
-#include "../src/blackjack.h"
 
 /***********
  * DEFINES *
@@ -59,8 +59,8 @@ void test_clear_hands(Hand hand);
 
 int main(void)
 {
-    char *locale = setlocale(LC_ALL, "");
-    srand(1968);
+    setlocale(LC_ALL, "");
+    srandom(1968);
     
     // Initialize logging
     if (init_zlog("test_blackjack.conf", "test_cat"))
@@ -68,7 +68,6 @@ int main(void)
         return EXIT_FAILURE;
     }
     
-    zinfo("setlocale() returned: %s.", locale);
     init_test_deck();
     
     end_zlog();

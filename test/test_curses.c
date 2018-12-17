@@ -34,12 +34,13 @@
 /************
  * INCLUDES *
  ************/
+#include "../src/blackjack.h"
+
 #include <stdlib.h>
 #include <locale.h>
 
 #include "../src/curses_output.h"
 #include "../src/logger.h"
-#include "../src/blackjack.h"
 #include "../src/deck_of_cards.h"
 
 /***********
@@ -55,7 +56,7 @@
 int main(void)
 {
     setlocale(LC_ALL, "");
-    srand(1968);
+    srandom(1968);
     
     if (init_zlog("test_curses.conf", "log")) printf(":p\n");
     

@@ -31,15 +31,22 @@
  *  Description:
  */
 
-
 #ifndef BLACKJACK_H_
 #define BLACKJACK_H_
+
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 700
+#endif
+
+//#ifndef _DEFAULT_SOURCE
+//#define _DEFAULT_SOURCE
+//#endif
 
 /************
  * INCLUDES *
  ************/
 #include <stdint.h>
-
+#include <ncurses.h>
 #include "deck_of_cards.h"
 
 /***********

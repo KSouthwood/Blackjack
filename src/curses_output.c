@@ -278,7 +278,7 @@ PlayerChoice get_player_choice(Player *player, WINDOW* msgWin)
     
     snprintf(msg, sizeof(msg), "%s: [S]tand, [H]it, [D]ouble down or S[p]lit? ", player->name);
     print_message(msgWin, msg);
-    echo();
+//    echo();
     
     while (!choiceMade)
     {
@@ -316,7 +316,7 @@ PlayerChoice get_player_choice(Player *player, WINDOW* msgWin)
         }
     }
     
-    noecho();
+//    noecho();
     return choice;
 }
 
@@ -338,15 +338,15 @@ WINDOW *init_message_window()
     getmaxyx(stdscr, lines, columns);
     
     // set up dimensions of our window
-    uint16_t msgY = lines - 12;
+    uint16_t msgY = lines - ((lines < 30) ? 7 : 12);
     uint16_t msgX = 2;
-    uint16_t msgLines = 10;
+    uint16_t msgLines = (lines < 30) ? 5 : 10;
     uint16_t msgColumns = columns - 4;
     
     // create window to display messages in and window for the border
     WINDOW *msgWindow = newwin(msgLines, msgColumns, msgY, msgX);
     zinfo("msgWindow pointer: %p", msgWindow);
-    wmove(msgWindow, 9, 0);
+    wmove(msgWindow, (lines - 1), 0);
     
     return msgWindow;
 }
@@ -380,7 +380,7 @@ void print_message(WINDOW *msgWindow, char *msg)
     touchwin(msgWindow);
     wmove(msgWindow, 0, 0);
     wdeleteln(msgWindow);
-    wmove(msgWindow, 9, 0);
+    wmove(msgWindow, (maxY - 1), 0);
     waddstr(msgWindow, msg);
     wrefresh(msgWindow);
 
