@@ -56,9 +56,7 @@ typedef struct Player
 {
     char name[11];
     uint32_t money;
-    uint32_t bet;
-    Hand hand1;
-    Hand hand2;
+    Hand hand;
 } Player;
 
 typedef struct Dealer

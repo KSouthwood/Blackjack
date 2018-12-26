@@ -151,41 +151,28 @@ void display_dealer(Dealer *dealer)
 
     // build the strings to be displayed
     char *nameString = calloc(19, sizeof(char));
+    char *statString = calloc(19, sizeof(char));
     char *handString = calloc(1, 50); // TODO: Calculate???? instead of magic number
 
-    if (!nameString || !handString)
+    if (!nameString || !handString || !statString)
     {
-        zerror("Memory allocation for dealer name or hand string failed.");
+        zerror("Memory allocation for dealer name, stat string or hand string failed.");
         goto error;
     }
     
-    snprintf(nameString, 19, "----- %s -----", dealer->name);
+    snprintf(nameString, 9, " %s ", dealer->name);
+//    snprintf(statString, 19, "Count: %u", blackjack_count(dealer->hand));
 
-    CardList *printCard = dealer->hand.cards;
-    if (printCard->card != NULL)
-    {
-//        hand_to_string(handString, dealer->faceup);
-        if (dealer->faceup == FALSE)
-        {
-            strncat(handString, "XXX ", 4);
-            printCard = printCard->nextCard;
-        }
-
-        while (printCard != NULL)
-        {
-            strncat(handString, printCard->card->face, 6);
-            strncat(handString, " ", 1);
-            printCard = printCard->nextCard;
-        }
-    }
+    hand_to_string(&dealer->hand, handString, dealer->faceup);
 
     box(dealerWindow, 0, 0);
-    mvwaddstr(dealerWindow, 1, 1, nameString);
+    mvwaddstr(dealerWindow, 0, 6, nameString);
     mvwaddstr(dealerWindow, 2, 1, handString);
     wrefresh(dealerWindow);
     delwin(dealerWindow);
 
 error:
+    free(statString);
     free(nameString);
     free(handString);
     return;
@@ -208,52 +195,49 @@ void display_player(Player *player)
     WINDOW *playerWindow = newwin(PLAYER_WINDOW_LINE, PLAYER_WINDOW_COLS, 8, 0);    // TODO change to variable coordinates
     // build the strings to be displayed
     char *nameString = calloc(19, sizeof(char));
-    char *hand1String = calloc(1, 50);
-    char *hand2String = calloc(1, 50);
+    char *statString = calloc(19, sizeof(char));
+    char *handString = calloc(1, 50);
 
-    if (!nameString || !hand1String || !hand2String)
+    if (!nameString || !handString)
     {
         zerror("Memory allocation failed for player strings.");
         goto error;
     }
 
     // Set up the strings
-    snprintf(nameString, 19, "%-10s $%6u", player->name, player->money);
-
-    CardList *printCard1 = player->hand1.cards;
-    if (printCard1->card != NULL)
-    {
-        while (printCard1 != NULL)
-        {
-            strncat(hand1String, printCard1->card->face, 6);
-            strncat(hand1String, " ", 1);
-            printCard1 = printCard1->nextCard;
-        }
-    }
-    
-    CardList *printCard2 = player->hand2.cards;
-    if (printCard2->card != NULL)
-    {
-        while (printCard2 != NULL)
-        {
-            strncat(hand2String, printCard2->card->face, 6);
-            strncat(hand2String, " ", 1);
-            printCard2 = printCard2->nextCard;
-        }
-    }
-    
+    snprintf(nameString, 17, " %s ", player->name);
+    snprintf(statString, 19, "        $%'9u", player->money);
     box(playerWindow, 0, 0);
-    mvwaddstr(playerWindow, 1, 1, nameString);
-    mvwaddstr(playerWindow, 2, 1, hand1String);
-    mvwaddstr(playerWindow, 3, 1, hand2String);
-
+    mvwaddstr(playerWindow, 0, ((PLAYER_WINDOW_COLS / 2) - (strlen(nameString) / 2)), nameString);
+    mvwaddstr(playerWindow, 1, 1, statString);
+    
+//    CardList *printCard = player->hand.cards;
+//    if (printCard->card != NULL)
+//    {
+//        while (printCard != NULL)
+//        {
+//            strncat(handString, printCard->card->face, 6);
+//            strncat(handString, " ", 1);
+//            printCard = printCard->nextCard;
+//        }
+//    }
+    Hand *handToPrint = &player->hand;
+    uint8_t lineToPrint = 2;
+    while (handToPrint != NULL)
+    {
+        hand_to_string(handToPrint, handString, TRUE);
+        mvwaddstr(playerWindow, lineToPrint++, 1, handString);
+        handToPrint = handToPrint->nextHand;
+        strcpy(handString, "");
+    }
+    
     wrefresh(playerWindow);
     delwin(playerWindow);
 
 error:
+    free(statString);
     free(nameString);
-    free(hand1String);
-    free(hand2String);
+    free(handString);
     return;
 }
 
@@ -278,7 +262,6 @@ PlayerChoice get_player_choice(Player *player, WINDOW* msgWin)
     
     snprintf(msg, sizeof(msg), "%s: [S]tand, [H]it, [D]ouble down or S[p]lit? ", player->name);
     print_message(msgWin, msg);
-//    echo();
     
     while (!choiceMade)
     {
@@ -316,7 +299,6 @@ PlayerChoice get_player_choice(Player *player, WINDOW* msgWin)
         }
     }
     
-//    noecho();
     return choice;
 }
 
@@ -384,5 +366,29 @@ void print_message(WINDOW *msgWindow, char *msg)
     waddstr(msgWindow, msg);
     wrefresh(msgWindow);
 
+    return;
+}
+
+void hand_to_string(Hand *hand, char *handString, bool showCard)
+{
+    if (hand->cards != NULL)
+    {
+    CardList *printCard = hand->cards;
+    if (printCard->card != NULL)
+    {
+        if(showCard == FALSE)
+        {
+            strcat(handString, "XXX ");
+            printCard = printCard->nextCard;
+        }
+        
+        while (printCard != NULL)
+        {
+            strncat(handString, printCard->card->face, 6);
+            strncat(handString, " ", 1);
+            printCard = printCard->nextCard;
+        }
+    }
+    }
     return;
 }

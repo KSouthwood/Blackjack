@@ -64,11 +64,12 @@ int main(void)
     char *msg2 = "Testing welcome screen.\n";
     char *msg3 = "Testing dealer with one card down. Press a key to continue.\n";
     char *msg4 = "Testing dealer with both cards up. Press a key to continue.\n";
-    char *msg5 = "Player box tested. Press a key to continue.\n";
+    char *msg5 = "Player box tested with one hand. Press a key to continue.\n";
     
     // Initialize the curses system
     zinfo("Initialize the curses system.");
     init_window();
+    wgetch(stdscr);
     WINDOW *messageWindow = init_message_window();
     zinfo("Initialized curses system.");
     print_message(messageWindow, msg1);
@@ -93,7 +94,8 @@ int main(void)
     strncpy(table.dealer->name, "Dealer", 7);
     table.dealer->faceup = FALSE;
     table.dealer->hand.nextHand = NULL;
-    table.dealer->hand.cards = calloc(1, sizeof(CardList));
+    // deal 3 cards
+    deal_card(table.shoe, &table.dealer->hand);
     deal_card(table.shoe, &table.dealer->hand);
     deal_card(table.shoe, &table.dealer->hand);
     
@@ -112,15 +114,14 @@ int main(void)
     table.players = calloc(1, sizeof(Player));
     strncpy(table.players[0].name, "Charlotte", 10);
     table.players[0].money = 99999;
-    table.players[0].hand1.cards = calloc(1, sizeof(CardList));
-    table.players[0].hand2.cards = calloc(1, sizeof(CardList));
-    deal_card(table.shoe, &table.players[0].hand1);
-    deal_card(table.shoe, &table.players[0].hand1);
+    deal_card(table.shoe, &table.players[0].hand);
+    deal_card(table.shoe, &table.players[0].hand);
     
     zinfo("Calling player window.");
     display_player(&table.players[0]);
     print_message(messageWindow, msg5);
     wgetch(stdscr);
+    
     
     zinfo("Freeing memory allocations.");
     delwin(messageWindow);

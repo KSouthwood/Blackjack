@@ -137,27 +137,30 @@ void shuffle_cards(Deck *shoe)
  */
 void deal_card(Deck *shoe, Hand *hand)
 {
-    zinfo("Card dealt is: %s", shoe->shoe[shoe->deal].face);
-    // check if the hand has no other cards yet and add the card to the root node if so
-    if (hand->cards->card == NULL)
-    {
-        hand->cards->card = &shoe->shoe[shoe->deal++];
-        return;
-    }
-    
-    CardList *currCard = hand->cards;
-    
-    // move to the end of the linked list of cards
-    while (currCard->nextCard != NULL)
-    {
-        currCard = currCard->nextCard;
-    }
-    
-    // allocate new node and update pointers to add card to end of the list
+    // allocate new node and assign the next card in the deck to it
     CardList *newCard = calloc(1, sizeof(CardList));
     newCard->card = &shoe->shoe[shoe->deal++];
     newCard->nextCard = NULL;
-    currCard->nextCard = newCard;
+    
+    CardList *currCard = hand->cards;
+    
+    // add the newCard to the root node if there are no cards in the hand
+    if (currCard == NULL)
+    {
+        hand->cards = newCard;
+    }
+    else    // otherwise add it to the end of cards
+    {
+        // move to the end of the linked list of cards
+        while (currCard->nextCard != NULL)
+        {
+            currCard = currCard->nextCard;
+        }
+
+        currCard->nextCard = newCard;
+    }
+    
+    zinfo("Card dealt is: %s", newCard->card->face);
     return;
 }
 
@@ -175,6 +178,7 @@ void deal_card(Deck *shoe, Hand *hand)
  */
 uint8_t blackjack_count(Hand hand)
 {
+    if (hand.cards == NULL) return 0;
     zdebug("Initialize blackjack_count...");
     bool softCount = false;
     bool hasAce = false;

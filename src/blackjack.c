@@ -58,9 +58,10 @@ bool check_dealer_hand(Table *table);
 void play_hands(Table *table);
 bool get_bets(Table *table);
 void play_dealer_hand(Dealer *dealer, Deck *shoe, WINDOW* msgWin);
-bool double_down(Player *player, WINDOW* msgWin);
+bool double_down(Player *player, Hand *hand, WINDOW* msgWin);
 bool check_table(Table table, bool dealerBlackjack);
-void clear_hands(Hand hand);
+void clear_hands(Hand *hand);
+bool split_hand(Hand *handToSplit, uint32_t *bank, Deck *shoe);
 
 int main()
 {
@@ -254,9 +255,9 @@ Player *init_players(uint8_t numPlayers)
             mvwprintw(stdscr, 3 + ii, 0, "What is player %i's name? ", ii + 1);
             wgetnstr(stdscr, players[ii].name, 10);
             players[ii].money = 1000;
-            players[ii].bet = 0;
-            players[ii].hand1.cards = calloc(1, sizeof(CardList));
-            players[ii].hand2.cards = calloc(1, sizeof(CardList));
+            players[ii].hand.cards = NULL;
+            players[ii].hand.bet = 0;
+            players[ii].hand.nextHand = NULL;
         }
         noecho();
         curs_set(CURS_INVIS);   // disable cursor
@@ -287,7 +288,8 @@ Dealer *init_dealer()
     {
         strncpy(dealer->name, "Dealer", 7);
         dealer->faceup = FALSE;
-        dealer->hand.cards = calloc(1, sizeof(CardList));
+        dealer->hand.cards = NULL;
+        dealer->hand.bet = 0;
         dealer->hand.nextHand = NULL;
     }
 
@@ -324,10 +326,10 @@ void play_game(Table *table)
         for (uint8_t i = 0; i < table->numPlayers; i++)
         {
             zinfo("Clearing hands for %s", table->players[i].name);
-            clear_hands(table->players[i].hand1);
-            clear_hands(table->players[i].hand2);
+            clear_hands(&table->players[i].hand);
         }
-        clear_hands(table->dealer->hand);
+        clear_hands(&table->dealer->hand);
+        table->dealer->faceup = FALSE;
 
         // Display the windows for players & dealer
         zinfo("Display windows.");
@@ -338,7 +340,6 @@ void play_game(Table *table)
         {
             display_player(&table->players[i]);
         }
-        
         
         zinfo("Get bets from players.");
         if ((gameOver = get_bets(table))) continue;
@@ -388,13 +389,13 @@ void deal_hands(Table *table)
     {
         for (uint8_t i = 0; i < table->numPlayers; i++)
         {
-            deal_card(table->shoe, &table->players[i].hand1);
+            deal_card(table->shoe, &table->players[i].hand);
         }
         deal_card(table->shoe, &table->dealer->hand);
     }
 
-    zinfo("Set dealer faceup flag to false. Returning.");
-    table->dealer->faceup = false;
+//    zinfo("Set dealer faceup flag to false. Returning.");
+//    table->dealer->faceup = false;
 
     // display player and dealer hands
     display_dealer(table->dealer);
@@ -476,43 +477,56 @@ void play_hands(Table *table)
     for (uint8_t player = 0; player < table->numPlayers; player++)
     {
         Player *currentPlayer = &table->players[player];
-        zinfo("***** Playing %s's hand. *****", currentPlayer->name);
-        bool playHand = TRUE;
-        while (playHand)
-        {
-            switch(get_player_choice(currentPlayer, table->msgWin))
-            {
-                case STAND:
-                    playHand = FALSE;
-                    break;
-                case HIT:
-                    // get a new card
-                    deal_card(table->shoe, &currentPlayer->hand1);
-                    if (blackjack_count(currentPlayer->hand1) > 21)
-                    {
-                        print_message(table->msgWin, "You've busted!");
-                        playHand = FALSE;    // player busted
-                    }
-                    display_player(currentPlayer);
-                    break;
-                case DOUBLE:
-                    if (double_down(currentPlayer, table->msgWin))
-                    {
-                        deal_card(table->shoe, &currentPlayer->hand1);
-                        playHand = FALSE;
-                    }
-                    display_player(currentPlayer);
-                    break;
-                case SPLIT:
-                    // TODO: split cards into two hands
-                    break;
-                default:
-                    // no default case
-                    break;
-            }
-            nanosleep(&sleep, &remain);
-        }
+        Hand *currentHand = &currentPlayer->hand;
         
+        while (currentHand != NULL)
+        {
+            zinfo("***** Playing %s's hand. *****", currentPlayer->name);
+            bool playHand = TRUE;
+            while (playHand)
+            {
+                switch(get_player_choice(currentPlayer, table->msgWin))
+                {
+                    case STAND:
+                        playHand = FALSE;
+                        break;
+                    case HIT:
+                        // get a new card
+                        deal_card(table->shoe, currentHand);
+                        if (blackjack_count(*currentHand) > 21)
+                        {
+                            print_message(table->msgWin, "You've busted!");
+                            playHand = FALSE;    // player busted
+                        }
+                        display_player(currentPlayer);
+                        break;
+                    case DOUBLE:
+                        if (double_down(currentPlayer, currentHand, table->msgWin))
+                        {
+                            deal_card(table->shoe, currentHand);
+                            playHand = FALSE;
+                        }
+                        display_player(currentPlayer);
+                        break;
+                    case SPLIT:
+                        if (split_hand(currentHand, &currentPlayer->money, table->shoe))
+                        {
+                            print_message(table->msgWin, "Hand split successfully.");
+                        }
+                        else
+                        {
+                            print_message(table->msgWin, "Hand not split. Cards not same value or not enough money.");
+                        }
+                        display_player(currentPlayer);
+                        break;
+                    default:
+                        // no default case
+                        break;
+                }
+                nanosleep(&sleep, &remain);
+            }
+        currentHand = currentHand->nextHand;
+        }
     }
     
     return;
@@ -572,7 +586,7 @@ bool get_bets(Table *table)
             zinfo("Check bet amount is between 0 and amount of player money.");
             if ((bet >= 0) && (bet <= table->players[player].money))
             {
-                table->players[player].bet = (uint32_t) bet;
+                table->players[player].hand.bet = (uint32_t) bet;
                 table->players[player].money -= (uint32_t) bet;
                 validBet = TRUE;
             }
@@ -636,17 +650,17 @@ void play_dealer_hand(Dealer *dealer, Deck *shoe, WINDOW* msgWin)
  *  Returns:
  *      bool:   TRUE if we could double down, FALSE if couldn't
  */
-bool double_down(Player *player, WINDOW* msgWin)
+bool double_down(Player *player, Hand *hand, WINDOW* msgWin)
 {
     // check we have enough money to double down
-    if (player->bet > player->money)
+    if (hand->bet > player->money)
     {
         print_message(msgWin, "Not enough money to double down! Choose another option.");
         return FALSE;
     }
     
-    player->money -= player->bet;
-    player->bet *=2;
+    player->money -= hand->bet;
+    hand->bet *=2;
     print_message(msgWin, "Doubling bet.");
     return TRUE;
 }
@@ -679,69 +693,73 @@ bool check_table(Table table, bool dealerBlackjack)
     
     for (uint8_t player = 0; player < table.numPlayers; player++)
     {
-        // determine if player has won or not
-        playerWon = FALSE;
-        if (dealerBlackjack == FALSE)   // check players hand only if dealer doesn't have blackjack
+        Hand *currentHand = &table.players[player].hand;
+        while (currentHand != NULL)
         {
-            playerCount = blackjack_count(table.players[player].hand1);
-            snprintf(msg, sizeof(msg), "%s has %u.", table.players[player].name, playerCount);
-            print_message(table.msgWin, msg);
-            zinfo("Dealer doesn't have blackjack. Player has %u.", playerCount);
-            if (playerCount <= 21)      // make sure player hasn't gone over 21
+            // determine if player has won or not
+            playerWon = FALSE;
+            if (dealerBlackjack == FALSE)   // check players hand only if dealer doesn't have blackjack
             {
-                zinfo("Player hasn't busted. Comparing against dealer.");
-                if (dealerCount > 21 || playerCount >= dealerCount)
-                {
-                    zinfo("Player won. Setting flag to TRUE.");
-                    playerWon = TRUE;   // player has won only if dealer busted or we have higher count
-                                        // also TRUE if playerCount equals dealerCount which is a tie
-                }
-            }
-            else
-            {
-                snprintf(msg, sizeof(msg), "%s has busted.", table.players[player].name);
+                playerCount = blackjack_count(*currentHand);
+                snprintf(msg, sizeof(msg), "%s has %u.", table.players[player].name, playerCount);
                 print_message(table.msgWin, msg);
-            }
-        }
-        
-        // handle pay out or collection
-        if (playerWon == TRUE)
-        {
-            uint32_t moneyWon = 0;
-            if  (playerCount == dealerCount)
-            {
-                snprintf(msg, sizeof(msg), "%s tied with dealer. Get your bet of %u back.",
-                         table.players[player].name, table.players[player].bet);
-                print_message(table.msgWin, msg);
-                zinfo("Player tied with dealer.");
-                table.players[player].money += table.players[player].bet;
-            }
-            else
-            {
-                if (playerCount == 21 && (table.players[player].hand1.cards->nextCard->nextCard == NULL)) // it's blackjack
+                zinfo("Dealer doesn't have blackjack. Player has %u.", playerCount);
+                if (playerCount <= 21)      // make sure player hasn't gone over 21
                 {
-                    moneyWon = table.players[player].bet * 2.5;
-                    snprintf(msg, sizeof(msg), "%s has blackjack! You win %u.", table.players[player].name, moneyWon);
-                    print_message(table.msgWin, msg);
-                    zinfo("Player has blackjack. Get half bet added: %u.", moneyWon);
-                    table.players[player].money += moneyWon;
+                    zinfo("Player hasn't busted. Comparing against dealer.");
+                    if (dealerCount > 21 || playerCount >= dealerCount)
+                    {
+                        zinfo("Player won. Setting flag to TRUE.");
+                        playerWon = TRUE;   // player has won only if dealer busted or we have higher count
+                                            // also TRUE if playerCount equals dealerCount which is a tie
+                    }
                 }
                 else
                 {
-                    moneyWon = table.players[player].bet * 2;
-                    snprintf(msg, sizeof(msg), "%s wins %u.", table.players[player].name, moneyWon);
+                    snprintf(msg, sizeof(msg), "%s has busted.", table.players[player].name);
                     print_message(table.msgWin, msg);
-                    zinfo("Player won. Get twice bet back: %u.", moneyWon);
-                    table.players[player].money += moneyWon;
                 }
             }
+
+            // handle pay out or collection
+            if (playerWon == TRUE)
+            {
+                uint32_t moneyWon = 0;
+                if  (playerCount == dealerCount)
+                {
+                    snprintf(msg, sizeof(msg), "%s tied with dealer. Get your bet of %u back.",
+                             table.players[player].name, currentHand->bet);
+                    print_message(table.msgWin, msg);
+                    zinfo("Player tied with dealer.");
+                    table.players[player].money += currentHand->bet;
+                }
+                else
+                {
+                    if (playerCount == 21 && (currentHand->cards->nextCard->nextCard == NULL)) // it's blackjack
+                    {
+                        moneyWon = currentHand->bet * 2.5;
+                        snprintf(msg, sizeof(msg), "%s has blackjack! You win %u.", table.players[player].name, moneyWon);
+                        print_message(table.msgWin, msg);
+                        zinfo("Player has blackjack. Get half bet added: %u.", moneyWon);
+                        table.players[player].money += moneyWon;
+                    }
+                    else
+                    {
+                        moneyWon = currentHand->bet * 2;
+                        snprintf(msg, sizeof(msg), "%s wins %u.", table.players[player].name, moneyWon);
+                        print_message(table.msgWin, msg);
+                        zinfo("Player won. Get twice bet back: %u.", moneyWon);
+                        table.players[player].money += moneyWon;
+                    }
+                }
+            }
+            // TODO: handle insurance bets here
+
+            currentHand = currentHand->nextHand;
         }
-        
-        // TODO: handle insurance bets here
-        
-        // reset bet amount here
-        zinfo("Reset players bet back to zero.");
-        table.players[player].bet = 0;
+//        // reset bet amount here
+//        zinfo("Reset players bet back to zero.");
+//        table.players[player].hand.bet = 0;
         
         if (table.players[player].money == 0)
         {
@@ -763,14 +781,15 @@ bool check_table(Table table, bool dealerBlackjack)
  *  Returns:
  *      N/A
  */
-void clear_hands(Hand hand)
+void clear_hands(Hand *hand)
 {
-    if (hand.cards != NULL)
+    Hand *currHand = hand;
+    Hand *tempHand = NULL;
+    
+    while (currHand != NULL)
     {
-        CardList *currCard, *tempCard;
-        currCard = hand.cards->nextCard;
-        hand.cards->nextCard = NULL;
-        hand.cards->card = NULL;
+        CardList *currCard = currHand->cards;
+        CardList *tempCard = NULL;
         
         while (currCard != NULL)
         {
@@ -778,7 +797,18 @@ void clear_hands(Hand hand)
             free(currCard);
             currCard = tempCard;
         }
+        
+        currHand->cards = NULL;
+        tempHand = currHand->nextHand;
+        if (currHand != hand)
+        {
+            free(currHand);
+        }
+        currHand = tempHand;
     }
+    
+    hand->bet = 0;
+    hand->nextHand = NULL;
     
     return;
 }
@@ -798,4 +828,62 @@ void clear_hands(Hand hand)
 void offer_insurance()
 {
     return;
+}
+
+/***************
+ *  Summary: Split a hand of two cards of same value into two hands
+ *
+ *  Description: Splits a hand of two cards into two hands. There must be two cards only of the same value, and the
+ *      player must have enough money to replicate the bet of the hand being split. (The new hand will have the same bet
+ *      as the hand being split.)
+ *
+ *  Parameter(s):
+ *      hand - Hand struct to be split
+ *
+ *  Returns:
+ *      N/A
+ */
+bool split_hand(Hand *handToSplit, uint32_t *bank, Deck *shoe)
+{
+    // check if we have one card in the hand
+    if (handToSplit->cards->nextCard == NULL)
+    {
+        zerror("Hand to be split only has one card.");
+        return FALSE;
+    }
+    
+    // check if we have more than two cards in the hand
+    if(handToSplit->cards->nextCard->nextCard != NULL)
+    {
+        zerror("Hand has more than two cards.");
+        return FALSE;
+    }
+    
+    // we have only two cards so make sure they're the same value
+    if (handToSplit->cards->card->value == handToSplit->cards->nextCard->card->value)
+    {
+        // cards have same value, do we have enough money to cover the additional bet
+        if (handToSplit->bet < *bank)
+        {
+            Hand *newHand = calloc(1, sizeof(Hand));
+            newHand->cards = handToSplit->cards->nextCard;
+            newHand->cards->nextCard = NULL;
+            newHand->bet = handToSplit->bet;
+            newHand->nextHand = handToSplit->nextHand;
+            handToSplit->cards->nextCard = NULL;
+            handToSplit->nextHand = newHand;
+            deal_card(shoe, handToSplit);
+            deal_card(shoe, newHand);
+            *bank -= handToSplit->bet;
+            return TRUE;
+        }
+        else
+        {
+            zinfo("Not enough money to split cards.");
+            return FALSE;
+        }
+    }
+    
+    zinfo("Cards are not the same value!");
+    return FALSE;
 }

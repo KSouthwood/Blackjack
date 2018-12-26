@@ -52,10 +52,13 @@
  ****************/
 void init_test_deck();
 void print_shoe(Deck *shoe);
-void print_hand(Hand hand);
-Dealer *init_dealer(void);
-void free_dealer(Dealer *dealer);
-void test_clear_hands(Hand hand);
+void print_hand(Hand *hand);
+Player *init_player(void);
+void free_player(Player *dealer);
+void test_clear_hands(Hand *hand);
+void test_split_hand(Hand *handToSplit, uint32_t *bank, Deck *shoe);
+void test_deal_card(Deck *shoe, Hand *hand);
+void test_clear_split_hands(Hand *hand);
 
 int main(void)
 {
@@ -95,26 +98,50 @@ void init_test_deck()
     shuffle_cards(deck);
     print_shoe(deck);
     
-    Dealer *dealer = init_dealer();
-    print_hand(dealer->hand);
-    deal_card(deck, &dealer->hand);
-    print_hand(dealer->hand);
-    deal_card(deck, &dealer->hand);
-    print_hand(dealer->hand);
-    printf("Clearing hands...\n");
-    test_clear_hands(dealer->hand);
-    print_hand(dealer->hand);
-    deal_card(deck, &dealer->hand);
-    print_hand(dealer->hand);
-    deal_card(deck, &dealer->hand);
-    print_hand(dealer->hand);
-    deal_card(deck, &dealer->hand);
-    print_hand(dealer->hand);
-    printf("Clearing hands...\n");
-    test_clear_hands(dealer->hand);
-    print_hand(dealer->hand);
+    Player *player = init_player();
+    print_hand(&player->hand);
     
-    free_dealer(dealer);
+    // deal 5H, 6C, 3C
+    for (int i = 0; i < 3; i++)
+    {
+        test_deal_card(deck, &player->hand);
+        print_hand(&player->hand);
+        test_split_hand(&player->hand, &player->money, deck);
+    }
+
+    printf("Clearing one hand...\n");
+    test_clear_split_hands(&player->hand);
+    player->hand.bet = 150;
+    print_hand(&player->hand);
+    
+    // deal Q
+    test_deal_card(deck, &player->hand);
+    print_hand(&player->hand);
+    test_split_hand(&player->hand, &player->money, deck);
+    
+    // deal J
+    test_deal_card(deck, &player->hand);
+    print_hand(&player->hand);
+    test_split_hand(&player->hand, &player->money, deck);
+    
+    // print hands after split (should be Q-K and J-K)
+    print_hand(&player->hand);
+    
+    // re-split both hands
+    Hand *currHand = &player->hand;
+    while (currHand != NULL)
+    {
+        test_split_hand(currHand, &player->money, deck);
+        print_hand(&player->hand);
+        currHand = currHand->nextHand;
+    }
+    
+
+    printf("Clearing hands...\n");
+    test_clear_split_hands(&player->hand);
+    print_hand(&player->hand);
+    
+    free_player(player);
     free(deck->shoe);
     free(deck);
     return;
@@ -157,22 +184,26 @@ void print_shoe(Deck *shoe)
  *  Returns:
  *      N/A
  */
-void print_hand(Hand hand)
+void print_hand(Hand *hand)
 {
-    printf("Dealer hand is: ");
-
-    CardList *printCard = hand.cards;
+    printf("Dealer hand(s) is/are:\n");
     
-    if (hand.cards->card != NULL)
+    Hand *handToPrint = hand;
+    while (handToPrint != NULL)
     {
-        while (printCard != NULL)
+        CardList *cardToPrint = handToPrint->cards;
+        printf("Count: %hhu - ", blackjack_count(*handToPrint));
+        
+        while (cardToPrint != NULL)
         {
-            printf("%s ", printCard->card->face);
-            printCard = printCard->nextCard;
+            printf("%s ", cardToPrint->card->face);
+            cardToPrint = cardToPrint->nextCard;
         }
+        
+        printf("\n");
+        handToPrint = handToPrint->nextHand;
     }
     
-    printf(" - Count: %hhu\n", blackjack_count(hand));
     return;
 }
 
@@ -187,15 +218,16 @@ void print_hand(Hand hand)
  *  Returns:
  *      dealer - pointer to the Dealer struct
  */
-Dealer *init_dealer(void)
+Player *init_player(void)
 {
-    Dealer *dealer = calloc(1, sizeof(Dealer));
-    strncpy(dealer->name, "Dealer", 7);
-    dealer->faceup = FALSE;
-    dealer->hand.cards = calloc(1, sizeof(CardList));
-    dealer->hand.nextHand = NULL;
+    Player *player = calloc(1, sizeof *player);
+    strncpy(player->name, "Konnor", 7);
+    player->money = 500;
+    player->hand.cards = NULL;
+    player->hand.nextHand = NULL;
+    player->hand.bet = 150;
     
-    return dealer;
+    return player;
 }
 
 /***************
@@ -209,45 +241,140 @@ Dealer *init_dealer(void)
  *  Returns:
  *      N/A
  */
-void free_dealer(Dealer *dealer)
+void free_player(Player *player)
 {
-    // traverse the card list if any cards
-    if (dealer->hand.cards != NULL)
-    {
-        CardList *currCard, *tempCard;
-        currCard = dealer->hand.cards->nextCard;
-        dealer->hand.cards->nextCard = NULL;
-        
-        while (currCard != NULL)
-        {
-            tempCard = currCard->nextCard;
-            free(currCard);
-            currCard = tempCard;
-        }
-    }
-    free(dealer->hand.cards);
-    free(dealer->hand.nextHand);
-    free(dealer->name);
+//    test_clear_split_hands(&player->hand);
+//    free(player->hand.cards);
+//    free(player->hand.nextHand);
+    free(player->name);
     return;
 }
 
-void test_clear_hands(Hand hand)
+void test_clear_hands(Hand *hand)
 {
     zinfo("Clearing hand of cards.");
-    if (hand.cards != NULL)
-    {
+    
         CardList *currCard, *tempCard;
-        currCard = hand.cards->nextCard;
-        hand.cards->nextCard = NULL;
-        hand.cards->card = NULL;
-        
+        currCard = hand->cards;
+
         while (currCard != NULL)
         {
             tempCard = currCard->nextCard;
             free(currCard);
             currCard = tempCard;
         }
+        hand->cards = NULL;
+    return;
+}
+
+void test_clear_split_hands(Hand *hand)
+{
+    zinfo("Clearing hands of cards.");
+    
+    Hand *currHand = hand;
+    Hand *tempHand = hand;
+    
+    while (currHand != NULL)
+    {
+        CardList *currCard, *tempCard;
+        currCard = currHand->cards;
+
+        while (currCard != NULL)
+        {
+            tempCard = currCard->nextCard;
+            free(currCard);
+            currCard = tempCard;
+        }
+        currHand->cards = NULL;
+        
+        tempHand = currHand->nextHand;
+        if (currHand != hand)
+        {
+            free(currHand);
+        }
+//        currHand = NULL;
+        currHand = tempHand;
+    }
+    
+    hand->bet = 0;
+    hand->nextHand = NULL;
+    
+    return;
+}
+
+void test_split_hand(Hand *handToSplit, uint32_t *bank, Deck *shoe)
+{
+    // check if we have only one card in hand
+    if (handToSplit->cards->nextCard == NULL)
+    {
+        zinfo("Hand to be split only has one card.");
+        return;
+    }
+    
+    // check if we have more than two cards in the hand
+    if (handToSplit->cards->nextCard->nextCard != NULL)
+    {
+        zinfo("Hand has more than two cards.");
+        return;
+    }
+    
+    // we have only two cards, now make sure they're the same value
+    if (handToSplit->cards->card->value == handToSplit->cards->nextCard->card->value)
+    {
+        // same value cards, do we have enough money to make the split
+        if (handToSplit->bet > *bank)
+        {
+            zinfo("Not enough money to be able to split hands!");
+        }
+        else
+        {
+            // two cards same value and enough money, let's split the cards into two hands
+            Hand *newHand = calloc(1, sizeof (Hand));
+            newHand->cards = handToSplit->cards->nextCard;
+            newHand->cards->nextCard = NULL;
+            newHand->bet = handToSplit->bet;
+            newHand->nextHand = handToSplit->nextHand;
+            *bank -= handToSplit->bet;
+            printf("Player has $%u left.\n", *bank);
+            handToSplit->cards->nextCard = NULL;
+            handToSplit->nextHand = newHand;
+            zinfo("Succesfully split cards.");
+            print_hand(handToSplit);
+            printf("Dealing new cards.\n");
+            test_deal_card(shoe, handToSplit);
+            test_deal_card(shoe, newHand);
+        }
+    }
+    else
+    {
+        zinfo("Cards are not the same value!");
     }
     
     return;
+}
+
+void test_deal_card(Deck *shoe, Hand *hand)
+{
+    // allocate new CardList and put new card in it
+    CardList *newCard = calloc(1, sizeof(CardList));
+    newCard->card = &shoe->shoe[shoe->deal++];
+    newCard->nextCard = NULL;
+
+    CardList *currCard = hand->cards;
+    
+    if (currCard == NULL)
+    {
+        hand->cards = newCard;
+    }
+    else
+    {
+        while (currCard->nextCard != NULL)
+        {
+            currCard = currCard->nextCard;
+        }
+
+        currCard->nextCard = newCard;
+    }
+    return;
+
 }
