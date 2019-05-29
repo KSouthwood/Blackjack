@@ -50,20 +50,22 @@ enum errorCode {NO_ERROR, ERR_PLAYER_ALLOC, ERR_DEALER_ALLOC, ERR_DECK_ALLOC, PL
  * DECLARATIONS *
  ****************/
 uint8_t setup_table(Table *table);
-void clean_up(Table *table, uint8_t error_code);
+Dealer *init_dealer(void);
 uint8_t get_num_players(void);
 Player *init_players(uint8_t num_players);
-Dealer *init_dealer(void);
+void clean_up(Table *table, uint8_t error_code);
 void play_game(Table *table);
+void clear_hands(Hand *hand);
+void refresh_windows(Table *table);
+bool get_bets(Table *table);
 void deal_hands(Table *table);
 bool check_dealer_hand(Table *table);
+void offer_insurance();
 void play_hands(Table *table);
-bool get_bets(Table *table);
-void play_dealer_hand(Dealer *dealer, Deck *shoe, WINDOW* msgWin);
 bool double_down(Player *player, Hand *hand, WINDOW* msgWin);
-bool check_table(Table table, bool dealerBlackjack);
-void clear_hands(Hand *hand);
 bool split_hand(Hand *handToSplit, uint32_t *bank, Deck *shoe);
+void play_dealer_hand(Dealer *dealer, Deck *shoe, WINDOW* msgWin);
+bool check_table(Table table, bool dealerBlackjack);
 
 /*************************************/
 
@@ -113,44 +115,6 @@ int main(int argc, char *argv[])
     clean_up(&table, result);
     
     return (result == NO_ERROR ? EXIT_SUCCESS : result);
-}
-
-/***************
- *  Summary: Clean up for program exit.
- *
- *  Description: Free up memory that has been allocated, stop ncurses to return screen to normal,
- *      and stop the logging.
- *
- *  Parameter(s):
- *  	table     : a pointer to the Table struct
- *      error_code: error code returned from setup_table function
- *
- *	Returns:
- *		N/A
- */
-void clean_up(Table *table, uint8_t error_code)
-{
-    zinfo("--==> clean_up() called. <==--");
-    // free table allocations
-    // ***** NO BREAKS ON PURPOSE - CODE IS SUPPOSED TO FALL THROUGH ***** //
-    switch(error_code)
-    {
-        case NO_ERROR:
-            delwin(table->msgWin);
-            free(table->shoe->shoe);
-            free(table->shoe);
-        case ERR_DECK_ALLOC:
-            free(table->players);
-        case ERR_PLAYER_ALLOC:
-        case PLAYER_QUIT:
-            free(table->dealer);
-        case ERR_DEALER_ALLOC:
-        default:
-            end_window();
-            end_zlog();
-    }
-    
-    return;
 }
 
 /***************
@@ -211,6 +175,36 @@ uint8_t setup_table(Table *table)
     table->msgWin = init_message_window();
     zinfo("Message window added.");
     return NO_ERROR;
+}
+
+/***************
+ *  Summary: Instantiate the dealer
+ *
+ *  Description: Set's up the dealer struct to initial values
+ *
+ *  Parameter(s):
+ *      N/A
+ *
+ *  Returns:
+ *      dealer: a pointer to dealer struct or NULL if an error occurred
+ */
+Dealer *init_dealer(void)
+{
+    zinfo("--==> init_dealer() called. <==--");
+    Dealer *dealer = calloc(1, sizeof(Dealer));
+    zdebug("Dealer pointer: %p", dealer);
+
+    if (dealer)
+    {
+        strncpy(dealer->name, "Dealer", 7);
+        dealer->faceup = FALSE;
+        dealer->hand.cards = NULL;
+        dealer->hand.bet = 0;
+        dealer->hand.nextHand = NULL;
+        dealer->hand.score = 0;
+    }
+
+    return dealer;
 }
 
 /***************
@@ -301,6 +295,7 @@ Player *init_players(uint8_t numPlayers)
             players[ii].hand.cards = NULL;
             players[ii].hand.bet = 0;
             players[ii].hand.nextHand = NULL;
+            players[ii].hand.score = 0;
         }
         noecho();
         curs_set(CURS_INVIS);   // disable cursor
@@ -312,34 +307,42 @@ Player *init_players(uint8_t numPlayers)
 }
 
 /***************
- *  Summary: Instantiate the dealer
+ *  Summary: Clean up for program exit.
  *
- *  Description: Set's up the dealer struct to initial values
+ *  Description: Free up memory that has been allocated, stop ncurses to return screen to normal,
+ *      and stop the logging.
  *
  *  Parameter(s):
- *      N/A
+ *  	table     : a pointer to the Table struct
+ *      error_code: error code returned from setup_table function
  *
- *  Returns:
- *      dealer: a pointer to dealer struct or NULL if an error occurred
+ *	Returns:
+ *		N/A
  */
-Dealer *init_dealer(void)
+void clean_up(Table *table, uint8_t error_code)
 {
-    zinfo("--==> init_dealer() called. <==--");
-    Dealer *dealer = calloc(1, sizeof(Dealer));
-    zdebug("Dealer pointer: %p", dealer);
-
-    if (dealer)
+    zinfo("--==> clean_up() called. <==--");
+    // free table allocations
+    // ***** NO BREAKS ON PURPOSE - CODE IS SUPPOSED TO FALL THROUGH ***** //
+    switch(error_code)
     {
-        strncpy(dealer->name, "Dealer", 7);
-        dealer->faceup = FALSE;
-        dealer->hand.cards = NULL;
-        dealer->hand.bet = 0;
-        dealer->hand.nextHand = NULL;
+        case NO_ERROR:
+            delwin(table->msgWin);
+            free(table->shoe->shoe);
+            free(table->shoe);
+        case ERR_DECK_ALLOC:
+            free(table->players);
+        case ERR_PLAYER_ALLOC:
+        case PLAYER_QUIT:
+            free(table->dealer);
+        case ERR_DEALER_ALLOC:
+        default:
+            end_window();
+            end_zlog();
     }
-
-    return dealer;
+    
+    return;
 }
-
 
 /***************
  *  Summary: Main play loop
@@ -356,51 +359,194 @@ Dealer *init_dealer(void)
  */
 void play_game(Table *table)
 {
-    zinfo("play_game called with num_players: %i, players: %p, dealer: %p.",
-            table->numPlayers, table->players, table->dealer);
-    zinfo("Shuffling shoe.");
-    shuffle_cards(table->shoe);
-    print_message(table->msgWin, "Shuffling the shoe.");
-
-    zdebug("Setting game_over flag and starting game loop.");
+    zinfo("--==> play_game() called <==--");
     bool gameOver = FALSE;
-    while (!gameOver)
+    
+    zinfo("***** Shuffling shoe. *****");
+    shuffle_cards(table->shoe); // TODO: move to game loop after adding shoe.shuffle flag
+    print_message(table->msgWin, "Shuffling the shoe.");
+    
+    while(!gameOver)
     {
-        // Reset players & dealer number of cards to 0
+        // do we have to shuffle cards?
+//        if (table->shoe.shuffle)
+//        {
+//            shuffle_cards(table->shoe);
+//            print_message(table->msgWin, "Shuffling the shoe.");
+//        }
+        
+        // clear out player and dealer hands?? or after bets paid??
         for (uint8_t i = 0; i < table->numPlayers; i++)
         {
-            zinfo("Clearing hands for %s", table->players[i].name);
             clear_hands(&table->players[i].hand);
         }
         clear_hands(&table->dealer->hand);
         table->dealer->faceup = FALSE;
-
-        // Display the windows for players & dealer
-        zinfo("Display windows.");
-        wclear(stdscr);
-        wrefresh(stdscr);
-        display_dealer(table->dealer);
-        for (uint8_t i = 0; i < table->numPlayers; i++)
+        
+        refresh_windows(table);
+        
+        // get bets from the players
+        if (!(gameOver = get_bets(table)))
         {
-            display_player(&table->players[i]);
+            // deal initial hands
+            deal_hands(table);
+            
+            // check dealer hand and skip player hands if we get TRUE back (dealer has blackjack)
+            if (!check_dealer_hand(table))
+            {
+                play_hands(table);
+                play_dealer_hand(table->dealer, table->shoe, table->msgWin);
+            }
+            
+            gameOver = check_table(*table, FALSE);
+        }
+    }
+    
+    return;
+}
+
+/***************
+ *  Summary: Clear the hand of cards
+ *
+ *  Description: Clear the hand of cards, setting to NULL or freeing as needed.
+ *
+ *  Parameter(s):
+ *      hand: Hand struct of the hand to clear
+ *
+ *  Returns:
+ *      N/A
+ */
+void clear_hands(Hand *hand)
+{
+    zinfo("--==> clear_hands() called <==--");
+    Hand *currHand = hand;
+    Hand *tempHand = NULL;
+    
+    while (currHand != NULL)
+    {
+        CardList *currCard = currHand->cards;
+        CardList *tempCard = NULL;
+        
+        while (currCard != NULL)
+        {
+            tempCard = currCard->nextCard;
+            free(currCard);
+            currCard = tempCard;
         }
         
-        zinfo("Get bets from players.");
-        if ((gameOver = get_bets(table))) continue;
-        zinfo("Calling deal_hands for initial deal.");
-        deal_hands(table);
-        zinfo("Check dealer hand for blackjack.");
-        if (check_dealer_hand(table) == FALSE)  // if dealer has blackjack we skip the players turns
+        currHand->cards = NULL;
+        tempHand = currHand->nextHand;
+        if (currHand != hand)
         {
-            play_hands(table);
-            play_dealer_hand(table->dealer, table->shoe, table->msgWin);
+            free(currHand);
         }
-        zinfo("******************************");
-        gameOver = check_table(*table, FALSE);
-        zinfo("******************************");
+        currHand = tempHand;
     }
-
+    
+    hand->bet = 0;
+    hand->nextHand = NULL;
+    
     return;
+}
+
+/***************
+ *  Summary: Update and display the windows on the terminal
+ *
+ *  Description: Clear the screen, then update all the windows and re-display screen
+ *
+ *  Parameter(s):
+ *      table: struct of the Table
+ *
+ *  Returns:
+ *      N/A
+ */
+void refresh_windows(Table *table)
+{
+    zinfo("--==> refresh_windows() called <==--");
+    // Display the windows for players & dealer
+    zinfo("Display windows.");
+    wclear(stdscr);
+    wrefresh(stdscr);
+    display_dealer(table->dealer);
+    for (uint8_t i = 0; i < table->numPlayers; i++)
+    {
+        display_player(&table->players[i]);
+    }
+    
+    return;
+}
+
+/***************
+ *  Summary: Instantiate the dealer
+ *
+ *  Description: Set's up the dealer struct to initial values
+ *
+ *  Parameter(s):
+ *      N/A
+ *
+ *  Returns:
+ *      dealer: a pointer to dealer struct or NULL if an error occurred
+ */
+bool get_bets(Table *table)
+{
+    zinfo("--==> get_bets() called <==--");
+    zinfo("Set variables");
+    char input[8];
+    char *endptr = NULL;
+    char msg[80];
+    long bet = 0;
+    echo();
+    
+    zinfo("Start player loop.");
+    for (uint8_t player = 0; player < table->numPlayers; player++)
+    {
+        zinfo("Input while loop");
+        bool validBet = FALSE;
+        while (!validBet)
+        {
+            zinfo("Print prompt and get input");
+            snprintf(msg, sizeof(msg), "%s, how much money do you wish to bet? ('q' to quit.) ", table->players[player].name);
+            print_message(table->msgWin, msg);
+            wgetnstr(table->msgWin, input, 7);
+            
+            // check if player wants to quit
+            if (tolower(input[0]) == 'q')
+            {
+                table->numPlayers--;
+                validBet = TRUE;
+                continue;
+            }
+            zinfo("Convert input to long.");
+            errno = 0;
+            bet = strtol(input, &endptr, 10);
+            // check for errors
+            zinfo("Check for input range error.");
+            if ((errno = ERANGE && (bet == LONG_MAX || bet == LONG_MIN)) || // returned value out of range
+                    (errno != 0 && bet == 0) ||                             // ??
+                    (endptr == input))                                      // no digits found in input
+            {
+                continue;
+            }
+            
+            zinfo("Check bet amount is between 0 and amount of player money.");
+            if ((bet >= 0) && (bet <= table->players[player].money))
+            {
+                table->players[player].hand.bet = (uint32_t) bet;
+                table->players[player].money -= (uint32_t) bet;
+                validBet = TRUE;
+            }
+            else
+            {
+                char output[80];
+                snprintf(output, 80, "Invalid amount bet. Must be between 0 and %u. Press a key to try again.",
+                        table->players[player].money);
+                print_message(table->msgWin, output);
+            }
+        }
+    }
+    
+    noecho();
+    return (table->numPlayers == 0);
 }
 
 /***************
@@ -417,6 +563,7 @@ void play_game(Table *table)
  */
 void deal_hands(Table *table)
 {
+    zinfo("--==> deal_hands() called <==--");
     // re-shuffle the deck if we're nearing the end
     // TODO Get rid of magic number. Switch to calculated random point or just use a #define
     if ((table->shoe->cards - table->shoe->deal) < (table->shoe->cards * 0.2))
@@ -467,6 +614,7 @@ void deal_hands(Table *table)
  */
 bool check_dealer_hand(Table *table)
 {
+    zinfo("--==> check_dealer_hand() called <==--");
     Dealer dealer = *table->dealer;
 //    WINDOW msgWin = *table->msgWin;
     
@@ -503,6 +651,24 @@ bool check_dealer_hand(Table *table)
 }
 
 /***************
+ *  Summary: Offer insurance bets to the players
+ *
+ *  Description: Ask each player in turn if they'd like the insurance bet when the dealer is showing an Ace for an
+ *      upcard. Deducts the bet from each player if they have enough money otherwise we move on.
+ *
+ *  Parameter(s):
+ *      N/A
+ *
+ *  Returns:
+ *      N/A
+ */
+void offer_insurance()
+{
+    zinfo("--==> offer_insurance() called <==--");
+    return;
+}
+
+/***************
  *  Summary: Play each players hand in order
  *
  *  Description: Go around the table getting what each player wants to do in order. Move to the next player once the
@@ -516,6 +682,7 @@ bool check_dealer_hand(Table *table)
  */
 void play_hands(Table *table)
 {
+    zinfo("--==> play_hands() called <==--");
     struct timespec sleep = {.tv_nsec = 500000000, .tv_sec = 0};
     struct timespec remain;
     for (uint8_t player = 0; player < table->numPlayers; player++)
@@ -577,75 +744,90 @@ void play_hands(Table *table)
 }
 
 /***************
- *  Summary: Instantiate the dealer
+ *  Summary: Handle the double down player option
  *
- *  Description: Set's up the dealer struct to initial values
+ *  Description: Player has chosen the double down option which involves dealing an extra card and doubling their bet.
+ *      We need to make sure they have enough money before we allow the double down.
  *
  *  Parameter(s):
- *      N/A
+ *      player: Player struct with player's hand
  *
  *  Returns:
- *      dealer: a pointer to dealer struct or NULL if an error occurred
+ *      bool:   TRUE if we could double down, FALSE if couldn't
  */
-bool get_bets(Table *table)
+bool double_down(Player *player, Hand *hand, WINDOW* msgWin)
 {
-    zinfo("Set variables");
-    char input[8];
-    char *endptr = NULL;
-    char msg[80];
-    long bet = 0;
-    echo();
-    
-    zinfo("Start player loop.");
-    for (uint8_t player = 0; player < table->numPlayers; player++)
+    zinfo("--==> double_down() called <==--");
+    // check we have enough money to double down
+    if (hand->bet > player->money)
     {
-        zinfo("Input while loop");
-        bool validBet = FALSE;
-        while (!validBet)
+        print_message(msgWin, "Not enough money to double down! Choose another option.");
+        return FALSE;
+    }
+    
+    player->money -= hand->bet;
+    hand->bet *=2;
+    print_message(msgWin, "Doubling bet.");
+    return TRUE;
+}
+
+/***************
+ *  Summary: Split a hand of two cards of same value into two hands
+ *
+ *  Description: Splits a hand of two cards into two hands. There must be two cards only of the same value, and the
+ *      player must have enough money to replicate the bet of the hand being split. (The new hand will have the same bet
+ *      as the hand being split.)
+ *
+ *  Parameter(s):
+ *      hand - Hand struct to be split
+ *
+ *  Returns:
+ *      N/A
+ */
+bool split_hand(Hand *handToSplit, uint32_t *bank, Deck *shoe)
+{
+    zinfo("--==> split_hand() called <==--");
+    // check if we have one card in the hand
+    if (handToSplit->cards->nextCard == NULL)
+    {
+        zerror("Hand to be split only has one card.");
+        return FALSE;
+    }
+    
+    // check if we have more than two cards in the hand
+    if(handToSplit->cards->nextCard->nextCard != NULL)
+    {
+        zerror("Hand has more than two cards.");
+        return FALSE;
+    }
+    
+    // we have only two cards so make sure they're the same value
+    if (handToSplit->cards->card->value == handToSplit->cards->nextCard->card->value)
+    {
+        // cards have same value, do we have enough money to cover the additional bet
+        if (handToSplit->bet < *bank)
         {
-            zinfo("Print prompt and get input");
-            snprintf(msg, sizeof(msg), "%s, how much money do you wish to bet? ('q' to quit.) ", table->players[player].name);
-            print_message(table->msgWin, msg);
-            wgetnstr(table->msgWin, input, 7);
-            
-            // check if player wants to quit
-            if (tolower(input[0]) == 'q')
-            {
-                table->numPlayers--;
-                validBet = TRUE;
-                continue;
-            }
-            zinfo("Convert input to long.");
-            errno = 0;
-            bet = strtol(input, &endptr, 10);
-            // check for errors
-            zinfo("Check for input range error.");
-            if ((errno = ERANGE && (bet == LONG_MAX || bet == LONG_MIN)) || // returned value out of range
-                    (errno != 0 && bet == 0) ||                             // ??
-                    (endptr == input))                                      // no digits found in input
-            {
-                continue;
-            }
-            
-            zinfo("Check bet amount is between 0 and amount of player money.");
-            if ((bet >= 0) && (bet <= table->players[player].money))
-            {
-                table->players[player].hand.bet = (uint32_t) bet;
-                table->players[player].money -= (uint32_t) bet;
-                validBet = TRUE;
-            }
-            else
-            {
-                char output[80];
-                snprintf(output, 80, "Invalid amount bet. Must be between 0 and %u. Press a key to try again.",
-                        table->players[player].money);
-                print_message(table->msgWin, output);
-            }
+            Hand *newHand = calloc(1, sizeof(Hand));
+            newHand->cards = handToSplit->cards->nextCard;
+            newHand->cards->nextCard = NULL;
+            newHand->bet = handToSplit->bet;
+            newHand->nextHand = handToSplit->nextHand;
+            handToSplit->cards->nextCard = NULL;
+            handToSplit->nextHand = newHand;
+            deal_card(shoe, handToSplit);
+            deal_card(shoe, newHand);
+            *bank -= handToSplit->bet;
+            return TRUE;
+        }
+        else
+        {
+            zinfo("Not enough money to split cards.");
+            return FALSE;
         }
     }
     
-    noecho();
-    return (table->numPlayers == 0);
+    zinfo("Cards are not the same value!");
+    return FALSE;
 }
 
 /***************
@@ -663,6 +845,7 @@ bool get_bets(Table *table)
  */
 void play_dealer_hand(Dealer *dealer, Deck *shoe, WINDOW* msgWin)
 {
+    zinfo("--==> play_dealer_hand() called <==--");
     zinfo("Set dealer->faceup flag to TRUE.");
     dealer->faceup = TRUE;
     display_dealer(dealer);
@@ -683,33 +866,6 @@ void play_dealer_hand(Dealer *dealer, Deck *shoe, WINDOW* msgWin)
 }
 
 /***************
- *  Summary: Handle the double down player option
- *
- *  Description: Player has chosen the double down option which involves dealing an extra card and doubling their bet.
- *      We need to make sure they have enough money before we allow the double down.
- *
- *  Parameter(s):
- *      player: Player struct with player's hand
- *
- *  Returns:
- *      bool:   TRUE if we could double down, FALSE if couldn't
- */
-bool double_down(Player *player, Hand *hand, WINDOW* msgWin)
-{
-    // check we have enough money to double down
-    if (hand->bet > player->money)
-    {
-        print_message(msgWin, "Not enough money to double down! Choose another option.");
-        return FALSE;
-    }
-    
-    player->money -= hand->bet;
-    hand->bet *=2;
-    print_message(msgWin, "Doubling bet.");
-    return TRUE;
-}
-
-/***************
  *  Summary: Compare player and dealer hands
  *
  *  Description: Compare the player and dealer hands and pay out or collect bets as required.
@@ -726,6 +882,7 @@ bool double_down(Player *player, Hand *hand, WINDOW* msgWin)
  */
 bool check_table(Table table, bool dealerBlackjack)
 {
+    zinfo("--==> check_table() called <==--");
     bool playerWon;
     uint8_t playerCount;
     char msg[80];
@@ -812,122 +969,4 @@ bool check_table(Table table, bool dealerBlackjack)
     }
 
     return (table.numPlayers == 0);
-}
-
-/***************
- *  Summary: Clear the hand of cards
- *
- *  Description: Clear the hand of cards, setting to NULL or freeing as needed.
- *
- *  Parameter(s):
- *      hand: Hand struct of the hand to clear
- *
- *  Returns:
- *      N/A
- */
-void clear_hands(Hand *hand)
-{
-    Hand *currHand = hand;
-    Hand *tempHand = NULL;
-    
-    while (currHand != NULL)
-    {
-        CardList *currCard = currHand->cards;
-        CardList *tempCard = NULL;
-        
-        while (currCard != NULL)
-        {
-            tempCard = currCard->nextCard;
-            free(currCard);
-            currCard = tempCard;
-        }
-        
-        currHand->cards = NULL;
-        tempHand = currHand->nextHand;
-        if (currHand != hand)
-        {
-            free(currHand);
-        }
-        currHand = tempHand;
-    }
-    
-    hand->bet = 0;
-    hand->nextHand = NULL;
-    
-    return;
-}
-
-/***************
- *  Summary: Offer insurance bets to the players
- *
- *  Description: Ask each player in turn if they'd like the insurance bet when the dealer is showing an Ace for an
- *      upcard. Deducts the bet from each player if they have enough money otherwise we move on.
- *
- *  Parameter(s):
- *      N/A
- *
- *  Returns:
- *      N/A
- */
-void offer_insurance()
-{
-    return;
-}
-
-/***************
- *  Summary: Split a hand of two cards of same value into two hands
- *
- *  Description: Splits a hand of two cards into two hands. There must be two cards only of the same value, and the
- *      player must have enough money to replicate the bet of the hand being split. (The new hand will have the same bet
- *      as the hand being split.)
- *
- *  Parameter(s):
- *      hand - Hand struct to be split
- *
- *  Returns:
- *      N/A
- */
-bool split_hand(Hand *handToSplit, uint32_t *bank, Deck *shoe)
-{
-    // check if we have one card in the hand
-    if (handToSplit->cards->nextCard == NULL)
-    {
-        zerror("Hand to be split only has one card.");
-        return FALSE;
-    }
-    
-    // check if we have more than two cards in the hand
-    if(handToSplit->cards->nextCard->nextCard != NULL)
-    {
-        zerror("Hand has more than two cards.");
-        return FALSE;
-    }
-    
-    // we have only two cards so make sure they're the same value
-    if (handToSplit->cards->card->value == handToSplit->cards->nextCard->card->value)
-    {
-        // cards have same value, do we have enough money to cover the additional bet
-        if (handToSplit->bet < *bank)
-        {
-            Hand *newHand = calloc(1, sizeof(Hand));
-            newHand->cards = handToSplit->cards->nextCard;
-            newHand->cards->nextCard = NULL;
-            newHand->bet = handToSplit->bet;
-            newHand->nextHand = handToSplit->nextHand;
-            handToSplit->cards->nextCard = NULL;
-            handToSplit->nextHand = newHand;
-            deal_card(shoe, handToSplit);
-            deal_card(shoe, newHand);
-            *bank -= handToSplit->bet;
-            return TRUE;
-        }
-        else
-        {
-            zinfo("Not enough money to split cards.");
-            return FALSE;
-        }
-    }
-    
-    zinfo("Cards are not the same value!");
-    return FALSE;
 }
