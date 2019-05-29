@@ -36,6 +36,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <locale.h>
+#include <stdint.h>
 
 #include "curses_output.h"
 #include "logger.h"
@@ -49,9 +50,10 @@ enum errorCode {NO_ERROR, ERR_PLAYER_ALLOC, ERR_DEALER_ALLOC, ERR_DECK_ALLOC, PL
  * DECLARATIONS *
  ****************/
 uint8_t setup_table(Table *table);
-uint8_t get_num_players();
+void clean_up(Table *table, uint8_t error_code);
+uint8_t get_num_players(void);
 Player *init_players(uint8_t num_players);
-Dealer *init_dealer();
+Dealer *init_dealer(void);
 void play_game(Table *table);
 void deal_hands(Table *table);
 bool check_dealer_hand(Table *table);
@@ -63,63 +65,92 @@ bool check_table(Table table, bool dealerBlackjack);
 void clear_hands(Hand *hand);
 bool split_hand(Hand *handToSplit, uint32_t *bank, Deck *shoe);
 
-int main()
+/*************************************/
+
+int main(int argc, char *argv[])
 {
+    // Set locale and start logging
+    setlocale(LC_ALL, "");
+    if (init_zlog("blackjack.conf", "log"))
+    {
+        return ERR;
+    }
+    
+    // Parse command line
+    if (argc > 1)
+    {
+        zinfo("Command line arguments found: %s", argv[0]);
+    }
+    
     // seed random number generator
 #if DEBUG
     srandom(1968);
 #else
     srandom(time(NULL));
 #endif
-    setlocale(LC_ALL, "");
 
-    if (init_zlog("blackjack.conf", "log")) return ERR;
-
+    // Set-up curses - initially require enough room, then go flexible
     init_window();
-    zinfo("ncurses initialized.");
     welcome_screen();
-    zinfo("Welcome screen displayed.");
-
-    // create table struct
-    Table *table = calloc(1, sizeof(Table));
-    zdebug("table pointer: %p.", table);
-    if (!table)
+    
+    // Set-up output windows
+    
+    /************
+     Move table instantiation and set-up to separate function. Returns
+     */
+    // Instantiate Table struct
+    Table table = {.numPlayers = 0, .msgWin = NULL, .dealer = NULL, .shoe = NULL, .players = NULL};
+    uint8_t result = setup_table(&table);
+    zinfo("Table setup result: %d", result);
+    
+    // Play game
+    if (result == NO_ERROR)
     {
-        zerror("Couldn't allocate memory for Table struct!");
+        play_game(&table);
     }
-    else
+    
+    // Clean-up & exit
+    clean_up(&table, result);
+    
+    return (result == NO_ERROR ? EXIT_SUCCESS : result);
+}
+
+/***************
+ *  Summary: Clean up for program exit.
+ *
+ *  Description: Free up memory that has been allocated, stop ncurses to return screen to normal,
+ *      and stop the logging.
+ *
+ *  Parameter(s):
+ *  	table     : a pointer to the Table struct
+ *      error_code: error code returned from setup_table function
+ *
+ *	Returns:
+ *		N/A
+ */
+void clean_up(Table *table, uint8_t error_code)
+{
+    zinfo("--==> clean_up() called. <==--");
+    // free table allocations
+    // ***** NO BREAKS ON PURPOSE - CODE IS SUPPOSED TO FALL THROUGH ***** //
+    switch(error_code)
     {
-        switch (setup_table(table))
-        {
-            /***** No breaks or default on purpose *****/
-            case NO_ERROR:
-                zinfo("Calling play game with table->numPlayers: %i, table->players: %p, table->dealer: %p.",
-                        table->numPlayers, table->players, table->dealer);
-                play_game(table);
-                zdebug("Freeing message window: %p.", table->msgWin);
-                delwin(table->msgWin);
-                zdebug("Freeing table->shoe->shoe: %p.", table->shoe->shoe);
-                free(table->shoe->shoe);
-                zdebug("Freeing table->shoe: %p.", table->shoe);
-                free(table->shoe);
-            case ERR_DECK_ALLOC:
-                zlog_debug(zc, "Freeing table->dealer: %p.", table->dealer);
-                free(table->dealer);
-            case ERR_DEALER_ALLOC:
-                zlog_debug(zc, "Freeing table->players: %p.", table->players);
-                free(table->players);
-            case ERR_PLAYER_ALLOC:
-            case PLAYER_QUIT:
-                zdebug("Freeing table: %p.", table);
-                free(table);
-        }
+        case NO_ERROR:
+            delwin(table->msgWin);
+            free(table->shoe->shoe);
+            free(table->shoe);
+        case ERR_DECK_ALLOC:
+            free(table->players);
+        case ERR_PLAYER_ALLOC:
+        case PLAYER_QUIT:
+            free(table->dealer);
+        case ERR_DEALER_ALLOC:
+        default:
+            end_window();
+            end_zlog();
     }
-
-    zlog_debug(zc, "Stopping ncurses.");
-    end_window();
-    end_zlog();
-
-    return 0;
+    
+    return;
 }
 
 /***************
@@ -132,46 +163,53 @@ int main()
  *  	table: a pointer to the Table struct
  *
  *	Returns:
- *		error:
+ *		error: a code from the error code enum indicating success or failure
  */
 uint8_t setup_table(Table *table)
 {
-    // get the number of players at table
-    table->numPlayers = get_num_players();
-    if (table->numPlayers == 0)
-    {
-        zdebug("Got 0 back which means player wants to quit.");
-        return PLAYER_QUIT;
-    }
+    zinfo("--==> setup_table() called. <==--");
 
-    // instantiate player(s)
-    table->players = init_players(table->numPlayers);
-    zdebug("table->players pointer: %p.", table->players);
-    if (!table->players)
-    {
-        zerror("Couldn't allocate memory for players array.");
-        return ERR_PLAYER_ALLOC;
-    }
-    
+    // instantiate dealer
     table->dealer = init_dealer();
-    zdebug("table->dealer pointer: %p.", table->dealer);
     if (!table->dealer)
         {
             zerror("Couldn't allocate memory for dealer struct.");
             return ERR_DEALER_ALLOC;
         }
+    zdebug("Dealer created.");
 
+    // get the number of players at table
+    table->numPlayers = get_num_players();
+    if (table->numPlayers == 0)
+    {
+        zinfo("Got 0 back which means player wants to quit.");
+        return PLAYER_QUIT;
+    }
+    zinfo("%d people playing.", table->numPlayers);
+    
+    // instantiate player(s)
+    table->players = init_players(table->numPlayers);
+    if (!table->players)
+    {
+        zerror("Couldn't allocate memory for players array.");
+        return ERR_PLAYER_ALLOC;
+    }
+    zdebug("Player(s) created.");
+    
+    // instaniate shoe accounting for number of players in game
     uint8_t decks = (table->numPlayers < 4) ? 1 : 1; // determine how many decks in the shoe; TODO: Change to 4 : 6
     zinfo("Instantiating %i decks for %i players.", decks, table->numPlayers);
     table->shoe = init_deck(decks);
-    zdebug("table->shoe pointer: %p.", table->shoe);
     if(!table->shoe)
     {
         zerror("Couldn't allocate memory for deck of cards.");
         return ERR_DECK_ALLOC;
     }
+    zinfo("Shoe created.");
     
+    // assign message window
     table->msgWin = init_message_window();
+    zinfo("Message window added.");
     return NO_ERROR;
 }
 
@@ -187,8 +225,9 @@ uint8_t setup_table(Table *table)
  *  Returns:
  *      numOfPlayers: The number of players playing blackjack
  */
-uint8_t get_num_players()
+uint8_t get_num_players(void)
 {
+    zinfo("--==> get_num_players() called. <==--");
     uint8_t numOfPlayers = 0;
     char input;
 
@@ -210,14 +249,17 @@ uint8_t get_num_players()
         // convert input to a number and make sure it's in our acceptable range
         if (atoi(&input))
         {
-            numOfPlayers = (atoi(&input) > 5) ? 0 : 1; // TODO change 1 back to atoi(&input) when ready
+            numOfPlayers = (atoi(&input) > 5) ? 0 : atoi(&input);
         }
     }
 
-    zinfo("Got %i players as input.", numOfPlayers);
+    zinfo("%i people entered.", numOfPlayers);
     waddch(stdscr, input);
     curs_set(CURS_INVIS);
 
+    // TODO: Remove for more than one person able to play
+    numOfPlayers = (numOfPlayers > 0) ? 1 : 0;
+    
     return numOfPlayers;
 }
 
@@ -236,6 +278,7 @@ uint8_t get_num_players()
  */
 Player *init_players(uint8_t numPlayers)
 {
+    zinfo("--==> init_players() called. <==--");
     if (numPlayers < 1 || numPlayers > 5)
     {
         zerror("numPlayers value passed in is out of range. Got %u when it should be 1-5.", numPlayers);
@@ -279,8 +322,9 @@ Player *init_players(uint8_t numPlayers)
  *  Returns:
  *      dealer: a pointer to dealer struct or NULL if an error occurred
  */
-Dealer *init_dealer()
+Dealer *init_dealer(void)
 {
+    zinfo("--==> init_dealer() called. <==--");
     Dealer *dealer = calloc(1, sizeof(Dealer));
     zdebug("Dealer pointer: %p", dealer);
 
@@ -448,7 +492,7 @@ bool check_dealer_hand(Table *table)
     }
 
     // No Ace or we've offered insurance, now check if we have blackjack
-    if (blackjack_count(dealer.hand) == 21)
+    if (blackjack_score(dealer.hand) == 21)
     {
         zinfo("Dealer has blackjack. Players lose.");
         print_message(table->msgWin, "Dealer has blackjack! Everybody loses.");
@@ -493,7 +537,7 @@ void play_hands(Table *table)
                     case HIT:
                         // get a new card
                         deal_card(table->shoe, currentHand);
-                        if (blackjack_count(*currentHand) > 21)
+                        if (blackjack_score(*currentHand) > 21)
                         {
                             print_message(table->msgWin, "You've busted!");
                             playHand = FALSE;    // player busted
@@ -625,7 +669,7 @@ void play_dealer_hand(Dealer *dealer, Deck *shoe, WINDOW* msgWin)
     struct timespec sleep = {.tv_nsec = 500000000, .tv_sec = 0};
     struct timespec remain;
     
-    while (blackjack_count(dealer->hand) < 17)
+    while (blackjack_score(dealer->hand) < 17)
     {
         print_message(msgWin, "Dealer hits.");
         deal_card(shoe, &dealer->hand);
@@ -686,7 +730,7 @@ bool check_table(Table table, bool dealerBlackjack)
     uint8_t playerCount;
     char msg[80];
     zinfo("Get dealer count.");
-    uint8_t dealerCount = blackjack_count(table.dealer->hand);
+    uint8_t dealerCount = blackjack_score(table.dealer->hand);
     snprintf(msg, sizeof(msg), "Dealer has %u.", dealerCount);
     print_message(table.msgWin, msg);
     zinfo("Dealer has %u. Checking players hands now.", dealerCount);
@@ -700,7 +744,7 @@ bool check_table(Table table, bool dealerBlackjack)
             playerWon = FALSE;
             if (dealerBlackjack == FALSE)   // check players hand only if dealer doesn't have blackjack
             {
-                playerCount = blackjack_count(*currentHand);
+                playerCount = blackjack_score(*currentHand);
                 snprintf(msg, sizeof(msg), "%s has %u.", table.players[player].name, playerCount);
                 print_message(table.msgWin, msg);
                 zinfo("Dealer doesn't have blackjack. Player has %u.", playerCount);

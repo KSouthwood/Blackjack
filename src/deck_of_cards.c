@@ -176,7 +176,7 @@ void deal_card(Deck *shoe, Hand *hand)
  *  Returns:
  *      N/A
  */
-uint8_t blackjack_count(Hand hand)
+uint8_t blackjack_score(Hand hand)
 {
     if (hand.cards == NULL) return 0;
     zdebug("Initialize blackjack_count...");

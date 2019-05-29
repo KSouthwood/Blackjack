@@ -192,7 +192,7 @@ void print_hand(Hand *hand)
     while (handToPrint != NULL)
     {
         CardList *cardToPrint = handToPrint->cards;
-        printf("Count: %hhu - ", blackjack_count(*handToPrint));
+        printf("Count: %hhu - ", blackjack_score(*handToPrint));
         
         while (cardToPrint != NULL)
         {

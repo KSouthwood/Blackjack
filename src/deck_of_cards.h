@@ -84,6 +84,7 @@ typedef struct Hand
 {
     CardList *cards;
     uint32_t bet;
+    uint8_t score;
     struct Hand *nextHand;
 } Hand;
 
@@ -93,6 +94,6 @@ typedef struct Hand
 Deck *init_deck(uint8_t decks);
 void shuffle_cards(Deck *shoe);
 void deal_card(Deck *shoe, Hand *hand);
-uint8_t blackjack_count(Hand hand);
+uint8_t blackjack_score(Hand hand);
 
 #endif /* DECK_OF_CARDS_H_ */
