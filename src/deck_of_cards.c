@@ -88,6 +88,8 @@ Deck *init_deck(uint8_t decks)
     
     deck->cards = cards;
     deck->deal = 0;
+    deck->cut = 0;
+    deck->shuffle = true;
     
     return deck;
 }
@@ -106,6 +108,7 @@ Deck *init_deck(uint8_t decks)
  */
 void shuffle_cards(Deck *shoe)
 {
+    zinfo("--==> shuffle_cards() called. <==--");
     Card shoe_tmp;
     uint16_t swap;
 
@@ -119,7 +122,8 @@ void shuffle_cards(Deck *shoe)
     }
 
     shoe->deal = 0; // Set the card to be dealt to the first card
-
+    shoe->cut = shoe->cards * 0.8;  // TODO: Make more random
+    shoe->shuffle = false;
     return;
 }
 
@@ -137,6 +141,7 @@ void shuffle_cards(Deck *shoe)
  */
 void deal_card(Deck *shoe, Hand *hand)
 {
+    zinfo("--==> deal_card() called. <==--");
     // allocate new node and assign the next card in the deck to it
     CardList *newCard = calloc(1, sizeof(CardList));
     newCard->card = &shoe->shoe[shoe->deal++];
@@ -161,6 +166,11 @@ void deal_card(Deck *shoe, Hand *hand)
     }
     
     zinfo("Card dealt is: %s", newCard->card->face);
+    if (shoe->deal == shoe->cut)
+    {
+        shoe->shuffle = true;
+        zinfo("Shuffle flag set to true.");
+    }
     return;
 }
 
@@ -178,6 +188,7 @@ void deal_card(Deck *shoe, Hand *hand)
  */
 uint8_t blackjack_score(Hand hand)
 {
+    zinfo("--==> blackjack_score() called. <==--");
     if (hand.cards == NULL) return 0;
     zdebug("Initialize blackjack_count...");
     bool softCount = false;

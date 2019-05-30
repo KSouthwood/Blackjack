@@ -70,8 +70,10 @@ typedef struct Card
 typedef struct Deck
 {
     Card *shoe;
-    uint16_t cards;
-    uint16_t deal;
+    uint16_t cards; // total cards in the deck
+    uint16_t deal;  // which card we're at in the deck
+    bool shuffle;   // flag for if the cards need to be shuffled
+    uint16_t cut;   // what point in the deck do we re-shuffle
 } Deck;
 
 typedef struct CardList
