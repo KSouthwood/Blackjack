@@ -52,16 +52,23 @@
  *  Returns:
  *      N/A
  */
-void init_window()
+bool init_window(void)
 {
+    log_call();
     initscr();              // Initialize ncurses mode
     cbreak();               // Make keypresses available immediately
     noecho();               // Don't echo keypresses to the screen
     curs_set(CURS_INVIS);   // Hide the cursor
+    keypad(stdscr, TRUE);   // Enable keypad
 
-    keypad(stdscr, TRUE);
-
-    return;
+    if ((COLS < 80) || (LINES < 40))
+    {
+        endwin();
+        printf("The terminal needs to be at least 80 x 40 in order to play.\n");
+        return false;
+    }
+    
+    return true;
 }
 
 /***************
@@ -75,8 +82,9 @@ void init_window()
  *  Returns:
  *      N/A
  */
-void end_window()
+void end_window(void)
 {
+    log_call();
     //TODO remove block when program is done or play_game loop is sufficiently finished
     uint16_t columns, lines;
     getmaxyx(stdscr, lines, columns);
@@ -98,8 +106,9 @@ void end_window()
  *  Returns:
  *      N/A
  */
-void welcome_screen()
+void welcome_screen(void)
 {
+    log_call();
     uint16_t columns, lines;    // the size of stdscr window
     uint8_t win_cols = 40;      // the width of our window
     uint8_t win_lines = 20;     // the height of our window
@@ -146,8 +155,9 @@ void welcome_screen()
  */
 void display_dealer(Dealer *dealer)
 {
-    zinfo("Displaying dealer.");
-    WINDOW *dealerWindow = newwin(PLAYER_WINDOW_LINE, PLAYER_WINDOW_COLS, 0, 0);    // TODO change to variable coordinates
+    log_call();
+    werase(dealer->window);
+    int winCols = getmaxx(dealer->window);
 
     // build the strings to be displayed
     char *nameString = calloc(19, sizeof(char));
@@ -165,11 +175,11 @@ void display_dealer(Dealer *dealer)
 
     hand_to_string(&dealer->hand, handString, dealer->faceup);
 
-    box(dealerWindow, 0, 0);
-    mvwaddstr(dealerWindow, 0, 6, nameString);
-    mvwaddstr(dealerWindow, 2, 1, handString);
-    wrefresh(dealerWindow);
-    delwin(dealerWindow);
+    box(dealer->window, 0, 0);
+    mvwaddstr(dealer->window, 0, ((winCols / 2) - (strlen(nameString) / 2)), nameString);
+    mvwaddstr(dealer->window, 2, 1, handString);
+    wrefresh(dealer->window);
+//    delwin(dealerWindow);
 
 error:
     free(statString);
@@ -191,8 +201,12 @@ error:
  */
 void display_player(Player *player)
 {
+    log_call();
     zinfo("Displaying player %s.", player->name);
-    WINDOW *playerWindow = newwin(PLAYER_WINDOW_LINE, PLAYER_WINDOW_COLS, 8, 0);    // TODO change to variable coordinates
+    
+    werase(player->window);
+    int winCols = getmaxx(player->window);
+    
     // build the strings to be displayed
     char *nameString = calloc(19, sizeof(char));
     char *statString = calloc(19, sizeof(char));
@@ -207,32 +221,22 @@ void display_player(Player *player)
     // Set up the strings
     snprintf(nameString, 17, " %s ", player->name);
     snprintf(statString, 19, "        $%'9u", player->money);
-    box(playerWindow, 0, 0);
-    mvwaddstr(playerWindow, 0, ((PLAYER_WINDOW_COLS / 2) - (strlen(nameString) / 2)), nameString);
-    mvwaddstr(playerWindow, 1, 1, statString);
+    box(player->window, 0, 0);
+    mvwaddstr(player->window, 0, ((winCols / 2) - (strlen(nameString) / 2)), nameString);
+    mvwaddstr(player->window, 1, winCols - 19 - 1, statString);
     
-//    CardList *printCard = player->hand.cards;
-//    if (printCard->card != NULL)
-//    {
-//        while (printCard != NULL)
-//        {
-//            strncat(handString, printCard->card->face, 6);
-//            strncat(handString, " ", 1);
-//            printCard = printCard->nextCard;
-//        }
-//    }
     Hand *handToPrint = &player->hand;
     uint8_t lineToPrint = 2;
     while (handToPrint != NULL)
     {
         hand_to_string(handToPrint, handString, TRUE);
-        mvwaddstr(playerWindow, lineToPrint++, 1, handString);
+        mvwaddstr(player->window, lineToPrint++, 1, handString);
         handToPrint = handToPrint->nextHand;
         strcpy(handString, "");
     }
     
-    wrefresh(playerWindow);
-    delwin(playerWindow);
+    wrefresh(player->window);
+//    delwin(playerWindow);
 
 error:
     free(statString);
@@ -255,6 +259,7 @@ error:
  */
 PlayerChoice get_player_choice(Player *player, WINDOW* msgWin)
 {
+    log_call();
     bool choiceMade = FALSE;
     PlayerChoice choice;
     char input;
@@ -313,14 +318,14 @@ PlayerChoice get_player_choice(Player *player, WINDOW* msgWin)
  *  Returns:
  *      N/A
  */
-WINDOW *init_message_window()
+WINDOW *init_message_window(void)
 {
-    zinfo("init_message_window() called.");
+    log_call();
     uint16_t columns, lines;        // width and height of the stdscr window
     getmaxyx(stdscr, lines, columns);
     
     // set up dimensions of our window
-    uint16_t msgY = lines - ((lines < 30) ? 7 : 12);
+    uint16_t msgY = lines - ((lines < 30) ? 7 : 20);
     uint16_t msgX = 2;
     uint16_t msgLines = (lines < 30) ? 5 : 10;
     uint16_t msgColumns = columns - 4;
@@ -348,6 +353,7 @@ WINDOW *init_message_window()
  */
 void print_message(WINDOW *msgWindow, char *msg)
 {
+    log_call();
     uint16_t maxY, maxX, begY, begX;
     getbegyx(msgWindow, begY, begX);
     getmaxyx(msgWindow, maxY, maxX);
@@ -371,6 +377,7 @@ void print_message(WINDOW *msgWindow, char *msg)
 
 void hand_to_string(Hand *hand, char *handString, bool showCard)
 {
+    log_call();
     if (hand->cards != NULL)
     {
     CardList *printCard = hand->cards;

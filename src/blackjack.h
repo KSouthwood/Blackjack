@@ -57,6 +57,7 @@ typedef struct Player
     char name[11];
     uint32_t money;
     Hand hand;
+    WINDOW *window;
 } Player;
 
 typedef struct Dealer
@@ -64,6 +65,7 @@ typedef struct Dealer
     char name[7];
     bool faceup;    // TRUE to show card
     Hand hand;
+    WINDOW *window;
 } Dealer;
 
 typedef struct Table

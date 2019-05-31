@@ -58,13 +58,13 @@ enum cursorMode {CURS_INVIS, CURS_NORMAL, CURS_VVIS};
 /****************
  * DECLARATIONS *
  ****************/
-void init_window();
-void end_window();
-void welcome_screen();
+bool init_window(void);
+void end_window(void);
+void welcome_screen(void);
 void display_dealer(Dealer *dealer);
 void display_player(Player *player);
 PlayerChoice get_player_choice(Player *player, WINDOW *msgWin);
-WINDOW *init_message_window();
+WINDOW *init_message_window(void);
 void print_message(WINDOW *msgWindow, char *msg);
 void hand_to_string(Hand *hand, char *handString, bool showCard);
 
