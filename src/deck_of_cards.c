@@ -61,6 +61,7 @@
  */
 Deck *init_deck(uint8_t decks)
 {
+    log_call();
     uint16_t cards = decks * CARDS_IN_DECK;
     
     // allocate memory
@@ -108,7 +109,7 @@ Deck *init_deck(uint8_t decks)
  */
 void shuffle_cards(Deck *shoe)
 {
-    zinfo("--==> shuffle_cards() called. <==--");
+    log_call();
     Card shoe_tmp;
     uint16_t swap;
 
@@ -141,7 +142,7 @@ void shuffle_cards(Deck *shoe)
  */
 void deal_card(Deck *shoe, Hand *hand)
 {
-    zinfo("--==> deal_card() called. <==--");
+    log_call();
     // allocate new node and assign the next card in the deck to it
     CardList *newCard = calloc(1, sizeof(CardList));
     newCard->card = &shoe->shoe[shoe->deal++];
@@ -188,7 +189,7 @@ void deal_card(Deck *shoe, Hand *hand)
  */
 uint8_t blackjack_score(Hand hand)
 {
-    zinfo("--==> blackjack_score() called. <==--");
+    log_call();
     if (hand.cards == NULL) return 0;
     zdebug("Initialize blackjack_count...");
     bool softCount = false;

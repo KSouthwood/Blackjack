@@ -371,15 +371,12 @@ void play_game(Table *table)
     log_call();
     bool gameOver = false;
 
-    zinfo("***** Shuffling shoe. *****");
-    //    shuffle_cards(table->shoe); // TODO: move to game loop after adding shoe.shuffle flag
-    //    print_message(table->msgWin, "Shuffling the shoe.");
-
     while (!gameOver)
     {
         // do we have to shuffle cards?
         if (table->shoe->shuffle)
         {
+            zinfo("***** Shuffling shoe. *****");
             shuffle_cards(table->shoe);
             print_message(table->msgWin, "Shuffling the shoe.");
         }
@@ -473,8 +470,8 @@ void refresh_windows(Table *table)
 {
     log_call();
     // Display the windows for players & dealer
-    zinfo("Display windows.");
     wclear(stdscr);
+    wrefresh(table->msgWin);
     wrefresh(stdscr);
     display_dealer(table->dealer);
     for (uint8_t i = 0; i < table->numPlayers; i++)
@@ -499,21 +496,20 @@ void refresh_windows(Table *table)
 bool get_bets(Table *table)
 {
     zinfo("--==> get_bets() called <==--");
-    zinfo("Set variables");
     char input[8];
     char *endptr = NULL;
     char msg[80];
     long bet = 0;
     echo();
 
-    zinfo("Start player loop.");
+    zdebug("Start player loop.");
     for (uint8_t player = 0; player < table->numPlayers; player++)
     {
-        zinfo("Input while loop");
+        zdebug("Input while loop");
         bool validBet = false;
         while (!validBet)
         {
-            zinfo("Print prompt and get input");
+            zdebug("Print prompt and get input");
             snprintf(msg, sizeof (msg), "%s, how much money do you wish to bet? ('q' to quit.) ", table->players[player].name);
             print_message(table->msgWin, msg);
             wgetnstr(table->msgWin, input, 7);
@@ -525,11 +521,11 @@ bool get_bets(Table *table)
                 validBet = true;
                 continue;
             }
-            zinfo("Convert input to long.");
+            zdebug("Convert input to long.");
             errno = 0;
             bet = strtol(input, &endptr, 10);
             // check for errors
-            zinfo("Check for input range error.");
+            zdebug("Check for input range error.");
             if ((errno = ERANGE && (bet == LONG_MAX || bet == LONG_MIN)) || // returned value out of range
                 (errno != 0 && bet == 0) || // ??
                 (endptr == input)) // no digits found in input
@@ -537,7 +533,7 @@ bool get_bets(Table *table)
                 continue;
             }
 
-            zinfo("Check bet amount is between 0 and amount of player money.");
+            zdebug("Check bet amount is between 0 and amount of player money.");
             if ((bet >= 0) && (bet <= table->players[player].money))
             {
                 table->players[player].hand.bet = (uint32_t) bet;
@@ -573,14 +569,6 @@ bool get_bets(Table *table)
 void deal_hands(Table *table)
 {
     log_call();
-    // re-shuffle the deck if we're nearing the end
-    // TODO Get rid of magic number. Switch to calculated random point or just use a #define
-    //    if ((table->shoe->cards - table->shoe->deal) < (table->shoe->cards * 0.2))
-    //    {
-    //        zinfo("Re-shuffling deck.");
-    //        print_message(table->msgWin, "Re-shuffling the deck.");
-    //        shuffle_cards(table->shoe);
-    //    }
 
     if (table->shoe->shuffle)
     {
@@ -595,16 +583,20 @@ void deal_hands(Table *table)
         for (uint8_t i = 0; i < table->numPlayers; i++)
         {
             deal_card(table->shoe, &table->players[i].hand);
+            refresh_windows(table);
+            delay(50);
         }
         deal_card(table->shoe, &table->dealer->hand);
+        refresh_windows(table);
+        delay(50);
     }
-
-    // display player and dealer hands
-    display_dealer(table->dealer);
-    for (uint8_t i = 0; i < table->numPlayers; i++)
-    {
-        display_player(&table->players[i]);
-    }
+//  TODO: Erase block if not needed anymore...
+//    // display player and dealer hands
+//    display_dealer(table->dealer);
+//    for (uint8_t i = 0; i < table->numPlayers; i++)
+//    {
+//        display_player(&table->players[i]);
+//    }
 
     return;
 }
@@ -646,8 +638,9 @@ bool check_dealer_hand(Table *table)
     if (!strcmp(dealer.hand.cards->nextCard->card->rank, " A"))
     {
         zinfo("Dealer is showing an Ace.");
-        print_message(table->msgWin, "Dealer is showing an Ace. Offering insurance bets.");
-        //TODO offer players insurance
+        print_message(table->msgWin, "Dealer is showing an Ace.");
+        //TODO offer players insurance - pass table.players
+        offer_insurance();
     }
 
     // No Ace or we've offered insurance, now check if we have blackjack
@@ -655,6 +648,7 @@ bool check_dealer_hand(Table *table)
     {
         zinfo("Dealer has blackjack. Players lose.");
         print_message(table->msgWin, "Dealer has blackjack! Everybody loses.");
+        delay(100);
         return true;
     }
 
@@ -856,6 +850,7 @@ void play_dealer_hand(Dealer *dealer, Deck *shoe, WINDOW* msgWin)
 {
     log_call();
     zinfo("Set dealer->faceup flag to true.");
+    zinfo("Dealer has %d.", blackjack_score(dealer->hand));
     dealer->faceup = true;
     display_dealer(dealer);
 
@@ -869,6 +864,7 @@ void play_dealer_hand(Dealer *dealer, Deck *shoe, WINDOW* msgWin)
 
     print_message(msgWin, "Dealer stands.");
     zinfo("Dealer is at 17 or greater. Standing.");
+    delay(100);
     return;
 }
 
@@ -897,10 +893,11 @@ bool check_table(Table table, bool dealerBlackjack)
     uint8_t dealerCount = blackjack_score(table.dealer->hand);
     snprintf(msg, sizeof (msg), "Dealer has %u.", dealerCount);
     print_message(table.msgWin, msg);
-    zinfo("Dealer has %u. Checking players hands now.", dealerCount);
+    zinfo("Dealer has %u.", dealerCount);
 
     for (uint8_t player = 0; player < table.numPlayers; player++)
     {
+        zinfo("Checking %s's hand.", table.players[player].name);
         Hand *currentHand = &table.players[player].hand;
         while (currentHand != NULL)
         {

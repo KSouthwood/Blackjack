@@ -236,7 +236,6 @@ void display_player(Player *player)
     }
     
     wrefresh(player->window);
-//    delwin(playerWindow);
 
 error:
     free(statString);
