@@ -256,21 +256,49 @@ error:
  *  Returns:
  *      N/A
  */
-PlayerChoice get_player_choice(Player *player, WINDOW* msgWin)
+PlayerChoice get_player_choice(char *name, Hand *hand, WINDOW* msgWin)
 {
     log_call();
-    bool choiceMade = FALSE;
+    bool choiceMade = false;
+    bool doubleValid = false;
+    bool splitValid = false;
     PlayerChoice choice;
     char input;
     char msg[80];
     
-    snprintf(msg, sizeof(msg), "%s: [S]tand, [H]it, [D]ouble down or S[p]lit? ", player->name);
+    // build message string of valid choices
+    char defaultChoices[15] = "[S]tand, [H]it";
+    char doubleDown[16] = ", [D]ouble down";
+    char split[10] = ", S[p]lit";
+    
+    if (hand->cards->nextCard->nextCard == NULL)
+    {
+        doubleValid = true;
+        if (hand->cards->card->value == hand->cards->nextCard->card->value)
+        {
+            splitValid = true;
+        }
+        else    // the two cards are not the same value so splitting is not an option
+        {
+            zdebug("Have two cards not same value, setting split message to NULL.");
+            split[0] = '\0';
+        }
+    }
+    else
+    {
+        // we have more than two cards so neither choice is valid
+        zdebug("Have more than two cards, setting double and split to null");
+        doubleDown[0] = '\0';
+        split[0] = '\0';
+    }
+    
+    snprintf(msg, sizeof(msg), "%s: %s%s%s? ", name, defaultChoices, doubleDown, split);
     print_message(msgWin, msg);
     
     while (!choiceMade)
     {
         zinfo("Ask for players choice.");
-        choiceMade = TRUE;
+        choiceMade = true;
         input = wgetch(stdscr);
         switch(input)
         {
@@ -288,18 +316,32 @@ PlayerChoice get_player_choice(Player *player, WINDOW* msgWin)
                 break;
             case 'd':
             case 'D':
-                choice = DOUBLE;
-                print_message(msgWin, "Double down\n");
-                zinfo("Player chose DOUBLE.");
+                if (doubleValid)
+                {
+                    choice = DOUBLE;
+                    print_message(msgWin, "Double down\n");
+                    zinfo("Player chose DOUBLE.");
+                }
+                else
+                {
+                    choiceMade = false;
+                }
                 break;
             case 'p':
             case 'P':
-                choice = SPLIT;
-                print_message(msgWin, "Split\n");
-                zinfo("Player chose SPLIT.");
+                if (splitValid)
+                {
+                    choice = SPLIT;
+                    print_message(msgWin, "Split\n");
+                    zinfo("Player chose SPLIT.");
+                }
+                else
+                {
+                    choiceMade = false;
+                }
                 break;
             default:
-                choiceMade = FALSE;
+                choiceMade = false;
         }
     }
     

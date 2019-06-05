@@ -699,7 +699,7 @@ void play_hands(Table *table)
             bool playHand = true;
             while (playHand)
             {
-                switch (get_player_choice(currentPlayer, table->msgWin))
+                switch (get_player_choice(currentPlayer->name, currentHand, table->msgWin))
                 {
                     case STAND:
                         playHand = false;
@@ -761,6 +761,7 @@ void play_hands(Table *table)
 bool double_down(Player *player, Hand *hand, WINDOW* msgWin)
 {
     log_call();
+    // TODO: make sure we have only two cards
     // check we have enough money to double down
     if (hand->bet > player->money)
     {

@@ -63,7 +63,7 @@ void end_window(void);
 void welcome_screen(void);
 void display_dealer(Dealer *dealer);
 void display_player(Player *player);
-PlayerChoice get_player_choice(Player *player, WINDOW *msgWin);
+PlayerChoice get_player_choice(char *name, Hand *hand, WINDOW* msgWin);
 WINDOW *init_message_window(void);
 void print_message(WINDOW *msgWindow, char *msg);
 void hand_to_string(Hand *hand, char *handString, bool showCard);
