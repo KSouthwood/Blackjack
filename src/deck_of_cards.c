@@ -166,7 +166,9 @@ void deal_card(Deck *shoe, Hand *hand)
         currCard->nextCard = newCard;
     }
     
-    zinfo("Card dealt is: %s", newCard->card->face);
+    hand->score = blackjack_score(*hand);
+    
+    zinfo("Card dealt is %s, count is now %d", newCard->card->face, hand->score);
     if (shoe->deal == shoe->cut)
     {
         shoe->shuffle = true;

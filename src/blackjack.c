@@ -644,7 +644,7 @@ bool check_dealer_hand(Table *table)
     }
 
     // No Ace or we've offered insurance, now check if we have blackjack
-    if (blackjack_score(dealer.hand) == 21)
+    if (dealer.hand.score == 21)
     {
         zinfo("Dealer has blackjack. Players lose.");
         print_message(table->msgWin, "Dealer has blackjack! Everybody loses.");
@@ -707,7 +707,7 @@ void play_hands(Table *table)
                     case HIT:
                         // get a new card
                         deal_card(table->shoe, currentHand);
-                        if (blackjack_score(*currentHand) > 21)
+                        if (currentHand->score > 21)
                         {
                             print_message(table->msgWin, "You've busted!");
                             playHand = false; // player busted
@@ -851,11 +851,11 @@ void play_dealer_hand(Dealer *dealer, Deck *shoe, WINDOW* msgWin)
 {
     log_call();
     zinfo("Set dealer->faceup flag to true.");
-    zinfo("Dealer has %d.", blackjack_score(dealer->hand));
+    zinfo("Dealer has %d.", dealer->hand.score);
     dealer->faceup = true;
     display_dealer(dealer);
 
-    while (blackjack_score(dealer->hand) < 17)
+    while (dealer->hand.score < 17)
     {
         print_message(msgWin, "Dealer hits.");
         deal_card(shoe, &dealer->hand);
@@ -888,13 +888,11 @@ bool check_table(Table table, bool dealerBlackjack)
 {
     log_call();
     bool playerWon;
-    uint8_t playerCount;
     char msg[80];
     zinfo("Get dealer count.");
-    uint8_t dealerCount = blackjack_score(table.dealer->hand);
-    snprintf(msg, sizeof (msg), "Dealer has %u.", dealerCount);
+    snprintf(msg, sizeof (msg), "Dealer has %u.", table.dealer->hand.score);
     print_message(table.msgWin, msg);
-    zinfo("Dealer has %u.", dealerCount);
+    zinfo("Dealer has %u.", table.dealer->hand.score);
 
     for (uint8_t player = 0; player < table.numPlayers; player++)
     {
@@ -906,14 +904,13 @@ bool check_table(Table table, bool dealerBlackjack)
             playerWon = false;
             if (dealerBlackjack == false) // check players hand only if dealer doesn't have blackjack
             {
-                playerCount = blackjack_score(*currentHand);
-                snprintf(msg, sizeof (msg), "%s has %u.", table.players[player].name, playerCount);
+                snprintf(msg, sizeof (msg), "%s has %u.", table.players[player].name, currentHand->score);
                 print_message(table.msgWin, msg);
-                zinfo("Dealer doesn't have blackjack. Player has %u.", playerCount);
-                if (playerCount <= 21) // make sure player hasn't gone over 21
+                zinfo("Dealer doesn't have blackjack. Player has %u.", currentHand->score);
+                if (table.players[player].hand.score <= 21) // make sure player hasn't gone over 21
                 {
                     zinfo("Player hasn't busted. Comparing against dealer.");
-                    if (dealerCount > 21 || playerCount >= dealerCount)
+                    if (table.dealer->hand.score > 21 || currentHand->score >= table.dealer->hand.score)
                     {
                         zinfo("Player won. Setting flag to true.");
                         playerWon = true; // player has won only if dealer busted or we have higher count
@@ -931,7 +928,7 @@ bool check_table(Table table, bool dealerBlackjack)
             if (playerWon == true)
             {
                 uint32_t moneyWon = 0;
-                if (playerCount == dealerCount)
+                if (currentHand->score == table.dealer->hand.score)
                 {
                     snprintf(msg, sizeof (msg), "%s tied with dealer. Get your bet of %u back.",
                              table.players[player].name, currentHand->bet);
@@ -941,7 +938,7 @@ bool check_table(Table table, bool dealerBlackjack)
                 }
                 else
                 {
-                    if (playerCount == 21 && (currentHand->cards->nextCard->nextCard == NULL)) // it's blackjack
+                    if (currentHand->score == 21 && (currentHand->cards->nextCard->nextCard == NULL)) // it's blackjack
                     {
                         moneyWon = currentHand->bet * 2.5;
                         snprintf(msg, sizeof (msg), "%s has blackjack! You win %u.", table.players[player].name, moneyWon);
