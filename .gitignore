@@ -47,3 +47,4 @@ Managed Build \(Release\)/
 
 # Netbeans project files
 /nbproject/
+/build/
