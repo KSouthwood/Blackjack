@@ -85,6 +85,7 @@ typedef struct CardList
 typedef struct Hand
 {
     CardList *cards;
+    uint8_t numCards;
     uint32_t bet;
     uint8_t score;
     struct Hand *nextHand;

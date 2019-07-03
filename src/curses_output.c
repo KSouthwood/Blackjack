@@ -271,7 +271,7 @@ PlayerChoice get_player_choice(char *name, Hand *hand, WINDOW* msgWin)
     char doubleDown[16] = ", [D]ouble down";
     char split[10] = ", S[p]lit";
     
-    if (hand->cards->nextCard->nextCard == NULL)
+    if (hand->numCards == 2)
     {
         doubleValid = true;
         if (hand->cards->card->value == hand->cards->nextCard->card->value)

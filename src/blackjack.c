@@ -204,6 +204,7 @@ Dealer *init_dealer(void)
         strncpy(dealer->name, "Dealer", 7);
         dealer->faceup = false;
         dealer->hand.cards = NULL;
+        dealer->hand.numCards = 0;
         dealer->hand.bet = 0;
         dealer->hand.nextHand = NULL;
         dealer->hand.score = 0;
@@ -299,6 +300,7 @@ Player *init_players(uint8_t numPlayers)
             wgetnstr(stdscr, players[ii].name, 10);
             players[ii].money = 1000;
             players[ii].hand.cards = NULL;
+            players[ii].hand.numCards = 0;
             players[ii].hand.bet = 0;
             players[ii].hand.nextHand = NULL;
             players[ii].hand.score = 0;
@@ -449,7 +451,9 @@ void clear_hands(Hand *hand)
         currHand = tempHand;
     }
 
+    hand->numCards = 0;
     hand->bet = 0;
+    hand->score = 0;
     hand->nextHand = NULL;
 
     return;
@@ -621,7 +625,7 @@ bool check_dealer_hand(Table *table)
     Dealer dealer = *table->dealer;
     //    WINDOW msgWin = *table->msgWin;
 
-    if (dealer.hand.cards == NULL)
+    if (dealer.hand.numCards == 0)
     {
         zerror("No dealer cards to check!");
         return false;
@@ -791,47 +795,28 @@ bool double_down(Player *player, Hand *hand, WINDOW* msgWin)
 bool split_hand(Hand *handToSplit, uint32_t *bank, Deck *shoe)
 {
     log_call();
-    // check if we have one card in the hand
-    if (handToSplit->cards->nextCard == NULL)
+    // cards have same value, do we have enough money to cover the additional bet
+    if (handToSplit->bet < *bank)
     {
-        zerror("Hand to be split only has one card.");
+        Hand *newHand = calloc(1, sizeof (Hand));
+        newHand->cards = handToSplit->cards->nextCard;
+        newHand->cards->nextCard = NULL;
+        newHand->bet = handToSplit->bet;
+        newHand->numCards = 1;
+        newHand->nextHand = handToSplit->nextHand;
+        handToSplit->cards->nextCard = NULL;
+        handToSplit->numCards = 1;
+        handToSplit->nextHand = newHand;
+        deal_card(shoe, handToSplit);
+        deal_card(shoe, newHand);
+        *bank -= handToSplit->bet;
+        return true;
+    }
+    else
+    {
+        zinfo("Not enough money to split cards.");
         return false;
     }
-
-    // check if we have more than two cards in the hand
-    if (handToSplit->cards->nextCard->nextCard != NULL)
-    {
-        zerror("Hand has more than two cards.");
-        return false;
-    }
-
-    // we have only two cards so make sure they're the same value
-    if (handToSplit->cards->card->value == handToSplit->cards->nextCard->card->value)
-    {
-        // cards have same value, do we have enough money to cover the additional bet
-        if (handToSplit->bet < *bank)
-        {
-            Hand *newHand = calloc(1, sizeof (Hand));
-            newHand->cards = handToSplit->cards->nextCard;
-            newHand->cards->nextCard = NULL;
-            newHand->bet = handToSplit->bet;
-            newHand->nextHand = handToSplit->nextHand;
-            handToSplit->cards->nextCard = NULL;
-            handToSplit->nextHand = newHand;
-            deal_card(shoe, handToSplit);
-            deal_card(shoe, newHand);
-            *bank -= handToSplit->bet;
-            return true;
-        }
-        else
-        {
-            zinfo("Not enough money to split cards.");
-            return false;
-        }
-    }
-
-    zinfo("Cards are not the same value!");
-    return false;
 }
 
 /***************
@@ -938,7 +923,7 @@ bool check_table(Table table, bool dealerBlackjack)
                 }
                 else
                 {
-                    if (currentHand->score == 21 && (currentHand->cards->nextCard->nextCard == NULL)) // it's blackjack
+                    if (currentHand->score == 21 && (currentHand->numCards == 2)) // it's blackjack
                     {
                         moneyWon = currentHand->bet * 2.5;
                         snprintf(msg, sizeof (msg), "%s has blackjack! You win %u.", table.players[player].name, moneyWon);

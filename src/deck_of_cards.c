@@ -166,7 +166,9 @@ void deal_card(Deck *shoe, Hand *hand)
         currCard->nextCard = newCard;
     }
     
+    // Update the score of the hand and the number of cards in the hand
     hand->score = blackjack_score(*hand);
+    hand->numCards++;
     
     zinfo("Card dealt is %s, count is now %d", newCard->card->face, hand->score);
     if (shoe->deal == shoe->cut)
@@ -192,17 +194,20 @@ void deal_card(Deck *shoe, Hand *hand)
 uint8_t blackjack_score(Hand hand)
 {
     log_call();
-    if (hand.cards == NULL) return 0;
+    if (hand.numCards == 0)
+    {
+        return 0;   // no cards in hand so return 0
+    }
     zdebug("Initialize blackjack_count...");
     bool softCount = false;
     bool hasAce = false;
-    uint8_t count = 0;
+    uint8_t score = 0;
     CardList *countCard = hand.cards;
     if (hand.cards->card != NULL)
     {
         while (countCard != NULL)
         {
-            zdebug("Card: %s, Count before: %2u.", countCard->card->face, count);
+            zdebug("Card: %s, Count before: %2u.", countCard->card->face, score);
             if (countCard->card->value == 11)
             {
                 zdebug("Ace found.");
@@ -211,31 +216,31 @@ uint8_t blackjack_score(Hand hand)
                     zdebug("First Ace in hand, setting hasAce and softCount to true.");
                     hasAce = true;
                     softCount = true;
-                    count += 11;
+                    score += 11;
                 }
                 else
                 {
                     zdebug("Second or more Ace, adding 1.");
-                    count += 1;
+                    score += 1;
                 }
             }
             else
             {
                 zdebug("Adding face value.");
-                count += countCard->card->value;
+                score += countCard->card->value;
             }
 
             // check if we're over 21 with softCount true
-            if ((count > 21) && softCount)
+            if ((score > 21) && softCount)
             {
                 zdebug("softCount is true, set to false and subtract 10 from count.");
                 softCount = false;
-                count -= 10;
+                score -= 10;
             }
 
             countCard = countCard->nextCard;
         }
     }
-    zdebug("Final count: %u", count);
-    return count;
+    zdebug("Final count: %u", score);
+    return score;
 }
