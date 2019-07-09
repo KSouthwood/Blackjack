@@ -67,7 +67,7 @@ bool init_window(void)
         printf("The terminal needs to be at least 80 x 40 in order to play.\n");
         return false;
     }
-    
+
     return true;
 }
 
@@ -169,7 +169,7 @@ void display_dealer(Dealer *dealer)
         zerror("Memory allocation for dealer name, stat string or hand string failed.");
         goto error;
     }
-    
+
     snprintf(nameString, 9, " %s ", dealer->name);
 //    snprintf(statString, 19, "Count: %u", blackjack_count(dealer->hand));
 
@@ -179,7 +179,6 @@ void display_dealer(Dealer *dealer)
     mvwaddstr(dealer->window, 0, ((winCols / 2) - (strlen(nameString) / 2)), nameString);
     mvwaddstr(dealer->window, 2, 1, handString);
     wrefresh(dealer->window);
-//    delwin(dealerWindow);
 
 error:
     free(statString);
@@ -203,10 +202,10 @@ void display_player(Player *player)
 {
     log_call();
     zinfo("Displaying player %s.", player->name);
-    
+
     werase(player->window);
     int winCols = getmaxx(player->window);
-    
+
     // build the strings to be displayed
     char *nameString = calloc(19, sizeof(char));
     char *statString = calloc(19, sizeof(char));
@@ -224,7 +223,7 @@ void display_player(Player *player)
     box(player->window, 0, 0);
     mvwaddstr(player->window, 0, ((winCols / 2) - (strlen(nameString) / 2)), nameString);
     mvwaddstr(player->window, 1, winCols - 19 - 1, statString);
-    
+
     Hand *handToPrint = &player->hand;
     uint8_t lineToPrint = 2;
     while (handToPrint != NULL)
@@ -234,7 +233,7 @@ void display_player(Player *player)
         handToPrint = handToPrint->nextHand;
         strcpy(handString, "");
     }
-    
+
     wrefresh(player->window);
 
 error:
@@ -291,10 +290,10 @@ PlayerChoice get_player_choice(char *name, Hand *hand, WINDOW* msgWin)
         doubleDown[0] = '\0';
         split[0] = '\0';
     }
-    
+
     snprintf(msg, sizeof(msg), "%s: %s%s%s? ", name, defaultChoices, doubleDown, split);
     print_message(msgWin, msg);
-    
+
     while (!choiceMade)
     {
         zinfo("Ask for players choice.");
@@ -344,7 +343,7 @@ PlayerChoice get_player_choice(char *name, Hand *hand, WINDOW* msgWin)
                 choiceMade = false;
         }
     }
-    
+
     return choice;
 }
 
@@ -364,18 +363,18 @@ WINDOW *init_message_window(void)
     log_call();
     uint16_t columns, lines;        // width and height of the stdscr window
     getmaxyx(stdscr, lines, columns);
-    
+
     // set up dimensions of our window
     uint16_t msgY = lines - ((lines < 30) ? 7 : 20);
     uint16_t msgX = 2;
     uint16_t msgLines = (lines < 30) ? 5 : 10;
     uint16_t msgColumns = columns - 4;
-    
+
     // create window to display messages in and window for the border
     WINDOW *msgWindow = newwin(msgLines, msgColumns, msgY, msgX);
     zinfo("msgWindow pointer: %p", msgWindow);
     wmove(msgWindow, (lines - 1), 0);
-    
+
     return msgWindow;
 }
 
@@ -398,13 +397,13 @@ void print_message(WINDOW *msgWindow, char *msg)
     uint16_t maxY, maxX, begY, begX;
     getbegyx(msgWindow, begY, begX);
     getmaxyx(msgWindow, maxY, maxX);
-    
+
     // draw a border around the message window
     WINDOW *boxwin = newwin(maxY + 4, maxX + 4, begY - 2, begX - 2);
     box(boxwin, 0, 0);
     wrefresh(boxwin);
     delwin(boxwin);
-    
+
     // delete the topmost line moving the other lines up and move the cursor to the bottom line
     touchwin(msgWindow);
     wmove(msgWindow, 0, 0);

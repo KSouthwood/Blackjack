@@ -60,14 +60,6 @@ typedef struct Player
     WINDOW *window;
 } Player;
 
-//typedef struct TestPlayer
-//{
-//    char name[11];
-//    uint32_t money;
-//    HandTest hand;
-//    WINDOW *window;
-//} TestPlayer;
-
 typedef struct Dealer
 {
     char name[7];

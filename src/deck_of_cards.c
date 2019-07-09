@@ -63,7 +63,7 @@ Deck *init_deck(uint8_t decks)
 {
     log_call();
     uint16_t cards = decks * CARDS_IN_DECK;
-    
+
     // allocate memory
     Deck *deck = calloc(1, sizeof(Deck));
     deck->shoe = calloc(cards, sizeof(Card));
@@ -72,11 +72,11 @@ Deck *init_deck(uint8_t decks)
         zerror("Deck memory allocation failed.");
         return NULL;
     }
-    
+
     char *ranks[13] = {" A", " 2", " 3", " 4", " 5", " 6", " 7", " 8", " 9", "10", " J", " Q", " K"};
     char *suits[4] =  {SPADE, CLUB, HEART, DIAMOND};
     uint8_t values[13] = {11, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10};
-    
+
     for (uint16_t card = 0; card < cards; card++)
     {
         uint16_t cc = card % CARDS_IN_DECK;
@@ -86,12 +86,12 @@ Deck *init_deck(uint8_t decks)
         strncat(deck->shoe[card].face, suits[cc / 13], 4);
         deck->shoe[card].value = values[cc % 13];
     }
-    
+
     deck->cards = cards;
     deck->deal = 0;
     deck->cut = 0;
     deck->shuffle = true;
-    
+
     return deck;
 }
 

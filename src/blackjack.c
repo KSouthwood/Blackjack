@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
         // Clean-up & exit
         clean_up(&table, result);
     }
-    
+
     return (result == NO_ERROR ? EXIT_SUCCESS : result);
 }
 
@@ -398,7 +398,7 @@ void play_game(Table *table)
             deal_hands(table);
 
             // check dealer hand and skip player hands if we get true back (dealer has blackjack)
-            if (!check_dealer_hand(table))
+            if (check_dealer_hand(table) == false)
             {
                 play_hands(table);
                 play_dealer_hand(table->dealer, table->shoe, table->msgWin);
@@ -425,17 +425,14 @@ void play_game(Table *table)
 void clear_hands(Hand *hand)
 {
     log_call();
-    Hand *currHand = hand;
+    Hand *currHand = hand->nextHand;
     Hand *tempHand = NULL;
 
     // loop through and free any memory associated with extra hands
     while (currHand != NULL)
     {
         tempHand = currHand->nextHand;
-        if (currHand != hand)
-        {
-            free(currHand);
-        }
+        free(currHand);
         currHand = tempHand;
     }
 
@@ -488,7 +485,7 @@ void refresh_windows(Table *table)
  */
 bool get_bets(Table *table)
 {
-    zinfo("--==> get_bets() called <==--");
+    log_call();
     char input[8];
     char *endptr = NULL;
     char msg[80];
@@ -583,13 +580,6 @@ void deal_hands(Table *table)
         refresh_windows(table);
         delay(50);
     }
-//  TODO: Erase block if not needed anymore...
-//    // display player and dealer hands
-//    display_dealer(table->dealer);
-//    for (uint8_t i = 0; i < table->numPlayers; i++)
-//    {
-//        display_player(&table->players[i]);
-//    }
 
     return;
 }
@@ -754,7 +744,6 @@ void play_hands(Table *table)
 bool double_down(Player *player, Hand *hand, WINDOW* msgWin)
 {
     log_call();
-    // TODO: make sure we have only two cards
     // check we have enough money to double down
     if (hand->bet > player->money)
     {
@@ -775,8 +764,13 @@ bool double_down(Player *player, Hand *hand, WINDOW* msgWin)
  *      player must have enough money to replicate the bet of the hand being split. (The new hand will have the same bet
  *      as the hand being split.)
  *
+ *      It's guaranteed that the passed in hand will have two cards of the same value. We only have to check there is
+ *      enough money.
+ *
  *  Parameter(s):
  *      hand - Hand struct to be split
+ *      bank - the amount of money the player has
+ *      shoe - the shoe of cards being used
  *
  *  Returns:
  *      N/A
@@ -861,7 +855,6 @@ bool check_table(Table table, bool dealerBlackjack)
     log_call();
     bool playerWon;
     char msg[80];
-    zinfo("Get dealer count.");
     snprintf(msg, sizeof (msg), "Dealer has %u.", table.dealer->hand.score);
     print_message(table.msgWin, msg);
     zinfo("Dealer has %u.", table.dealer->hand.score);

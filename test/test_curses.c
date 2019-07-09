@@ -131,7 +131,7 @@ int main(void)
     free(table.shoe);
     
     zinfo("Terminating curses mode.");
-    end_window(table.msgWin);
+    end_window();
     end_zlog();
     return 0;
 }
