@@ -203,7 +203,6 @@ Dealer *init_dealer(void)
     {
         strncpy(dealer->name, "Dealer", 7);
         dealer->faceup = false;
-        dealer->hand.cards = NULL;
         dealer->hand.numCards = 0;
         dealer->hand.bet = 0;
         dealer->hand.nextHand = NULL;
@@ -299,7 +298,6 @@ Player *init_players(uint8_t numPlayers)
             mvwprintw(stdscr, 3 + ii, 0, "What is player %i's name? ", ii + 1);
             wgetnstr(stdscr, players[ii].name, 10);
             players[ii].money = 1000;
-            players[ii].hand.cards = NULL;
             players[ii].hand.numCards = 0;
             players[ii].hand.bet = 0;
             players[ii].hand.nextHand = NULL;
@@ -430,19 +428,9 @@ void clear_hands(Hand *hand)
     Hand *currHand = hand;
     Hand *tempHand = NULL;
 
+    // loop through and free any memory associated with extra hands
     while (currHand != NULL)
     {
-        CardList *currCard = currHand->cards;
-        CardList *tempCard = NULL;
-
-        while (currCard != NULL)
-        {
-            tempCard = currCard->nextCard;
-            free(currCard);
-            currCard = tempCard;
-        }
-
-        currHand->cards = NULL;
         tempHand = currHand->nextHand;
         if (currHand != hand)
         {
@@ -451,6 +439,7 @@ void clear_hands(Hand *hand)
         currHand = tempHand;
     }
 
+    // reset hand to initial state
     hand->numCards = 0;
     hand->bet = 0;
     hand->score = 0;
@@ -632,14 +621,14 @@ bool check_dealer_hand(Table *table)
     }
 
     // if our upcard is not a face card or Ace, no need to run the checks
-    if (dealer.hand.cards->nextCard->card->value < 10)
+    if (dealer.hand.cards[1].value < 10)
     {
         zinfo("Upcard is not an Ace or face card. Exiting check.");
         return false;
     }
 
     // check for Ace in dealer upcard and offer insurance if it is
-    if (!strcmp(dealer.hand.cards->nextCard->card->rank, " A"))
+    if (!strcmp(dealer.hand.cards[1].rank, " A"))
     {
         zinfo("Dealer is showing an Ace.");
         print_message(table->msgWin, "Dealer is showing an Ace.");
@@ -799,12 +788,10 @@ bool split_hand(Hand *handToSplit, uint32_t *bank, Deck *shoe)
     if (handToSplit->bet < *bank)
     {
         Hand *newHand = calloc(1, sizeof (Hand));
-        newHand->cards = handToSplit->cards->nextCard;
-        newHand->cards->nextCard = NULL;
+        newHand->cards[0] = handToSplit->cards[1];
         newHand->bet = handToSplit->bet;
         newHand->numCards = 1;
         newHand->nextHand = handToSplit->nextHand;
-        handToSplit->cards->nextCard = NULL;
         handToSplit->numCards = 1;
         handToSplit->nextHand = newHand;
         deal_card(shoe, handToSplit);

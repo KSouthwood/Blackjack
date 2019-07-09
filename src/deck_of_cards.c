@@ -143,34 +143,13 @@ void shuffle_cards(Deck *shoe)
 void deal_card(Deck *shoe, Hand *hand)
 {
     log_call();
-    // allocate new node and assign the next card in the deck to it
-    CardList *newCard = calloc(1, sizeof(CardList));
-    newCard->card = &shoe->shoe[shoe->deal++];
-    newCard->nextCard = NULL;
-    
-    CardList *currCard = hand->cards;
-    
-    // add the newCard to the root node if there are no cards in the hand
-    if (currCard == NULL)
-    {
-        hand->cards = newCard;
-    }
-    else    // otherwise add it to the end of cards
-    {
-        // move to the end of the linked list of cards
-        while (currCard->nextCard != NULL)
-        {
-            currCard = currCard->nextCard;
-        }
 
-        currCard->nextCard = newCard;
-    }
-    
     // Update the score of the hand and the number of cards in the hand
+    // Deal new card to hand and update the score
+    hand->cards[hand->numCards++] = shoe->shoe[shoe->deal++];
     hand->score = blackjack_score(*hand);
-    hand->numCards++;
-    
-    zinfo("Card dealt is %s, count is now %d", newCard->card->face, hand->score);
+
+    zinfo("Card dealt is %s, count is now %d", hand->cards[hand->numCards - 1].face, hand->score);
     if (shoe->deal == shoe->cut)
     {
         shoe->shuffle = true;
@@ -194,24 +173,20 @@ void deal_card(Deck *shoe, Hand *hand)
 uint8_t blackjack_score(Hand hand)
 {
     log_call();
-    if (hand.numCards == 0)
-    {
-        return 0;   // no cards in hand so return 0
-    }
     zdebug("Initialize blackjack_count...");
     bool softCount = false;
     bool hasAce = false;
     uint8_t score = 0;
-    CardList *countCard = hand.cards;
-    if (hand.cards->card != NULL)
+
+    if (hand.numCards > 0)
     {
-        while (countCard != NULL)
+        for (uint8_t card = 0; card < hand.numCards; card++)
         {
-            zdebug("Card: %s, Count before: %2u.", countCard->card->face, score);
-            if (countCard->card->value == 11)
+            zdebug("Card: %s, Count before: %2u.", hand.cards[card].face, score);
+            if (hand.cards[card].value == 11)
             {
                 zdebug("Ace found.");
-                if(!hasAce)
+                if (!hasAce)
                 {
                     zdebug("First Ace in hand, setting hasAce and softCount to true.");
                     hasAce = true;
@@ -227,7 +202,7 @@ uint8_t blackjack_score(Hand hand)
             else
             {
                 zdebug("Adding face value.");
-                score += countCard->card->value;
+                score += hand.cards[card].value;
             }
 
             // check if we're over 21 with softCount true
@@ -237,10 +212,9 @@ uint8_t blackjack_score(Hand hand)
                 softCount = false;
                 score -= 10;
             }
-
-            countCard = countCard->nextCard;
         }
     }
+
     zdebug("Final count: %u", score);
     return score;
 }

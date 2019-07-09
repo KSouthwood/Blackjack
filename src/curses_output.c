@@ -265,16 +265,16 @@ PlayerChoice get_player_choice(char *name, Hand *hand, WINDOW* msgWin)
     PlayerChoice choice;
     char input;
     char msg[80];
-    
+
     // build message string of valid choices
     char defaultChoices[15] = "[S]tand, [H]it";
     char doubleDown[16] = ", [D]ouble down";
     char split[10] = ", S[p]lit";
-    
+
     if (hand->numCards == 2)
     {
         doubleValid = true;
-        if (hand->cards->card->value == hand->cards->nextCard->card->value)
+        if (hand->cards[0].value == hand->cards[1].value)
         {
             splitValid = true;
         }
@@ -416,27 +416,31 @@ void print_message(WINDOW *msgWindow, char *msg)
     return;
 }
 
+/***************
+ *  Summary:
+ *
+ *  Description:
+ *
+ *  Parameter(s):
+ *      N/A
+ *
+ *  Returns:
+ *      N/A
+ */
+
 void hand_to_string(Hand *hand, char *handString, bool showCard)
 {
     log_call();
-    if (hand->cards != NULL)
+    for (uint8_t card = 0; card < hand->numCards; card++)
     {
-    CardList *printCard = hand->cards;
-    if (printCard->card != NULL)
-    {
-        if(showCard == FALSE)
+        if ((card == 0) && (showCard == FALSE))
         {
-            strcat(handString, "XXX ");
-            printCard = printCard->nextCard;
+            strncat(handString, "XXX ", 5);
+            continue;
         }
-        
-        while (printCard != NULL)
-        {
-            strncat(handString, printCard->card->face, 6);
-            strncat(handString, " ", 1);
-            printCard = printCard->nextCard;
-        }
-    }
+
+        strncat(handString, hand->cards[card].face, 6);
+        strncat(handString, " ", 2);
     }
     return;
 }
